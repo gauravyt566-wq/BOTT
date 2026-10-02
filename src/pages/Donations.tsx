@@ -5,7 +5,7 @@ import { Heart, Coins, QrCode, ToggleLeft, ToggleRight, Save, Send, ShieldAlert,
 export function Donations() {
   const [donations, setDonations] = useState<any[]>([]);
   const [config, setConfig] = useState({
-    payeeUpi: 'alkhkumar@fam',
+    payeeUpi: 'gaurav.intel@fam',
     cryptoCurrencyName: 'USDT (TRC-20)',
     cryptoWalletAddress: '',
     showCrypto: false
@@ -70,7 +70,7 @@ export function Donations() {
         setSuccessMsg('🎉 Donation main leaderboard post message has been sent to the channel successfully!');
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.error || 'Could not send telegram message. Make sure the main bot is an admin in @encorexosint!');
+      setErrorMsg(err.response?.data?.error || 'Could not send telegram message. Make sure the main bot is an admin in @PrivateLimitedHub!');
     } finally {
       setSendingMsg(false);
     }
@@ -183,7 +183,7 @@ export function Donations() {
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-5 rounded-xl text-white shadow-md flex flex-col justify-between">
           <div>
             <p className="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">Donations Leaderboard Post</p>
-            <p className="text-xs text-indigo-100 mt-1">Sends or recreates top donations message in @encorexosint.</p>
+            <p className="text-xs text-indigo-100 mt-1">Sends or recreates top donations message in @PrivateLimitedHub.</p>
           </div>
           <button
             onClick={handleSendTelegramMessage}
@@ -215,7 +215,7 @@ export function Donations() {
                 value={config.payeeUpi}
                 onChange={e => setConfig({ ...config, payeeUpi: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                placeholder="e.g. alkhkumar@fam"
+                placeholder="e.g. gaurav.intel@fam"
                 required
               />
               <p className="text-[10px] text-gray-400 mt-1">Users will see a dynamically generated QR linking to this UPI payee handle.</p>

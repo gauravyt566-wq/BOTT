@@ -99,8 +99,8 @@ export function MassApiRunner() {
       loadProfile(uId);
     } else {
       // Browser fallback (for preview/testing if needed)
-      setUserId('714902844');
-      loadProfile('714902844');
+      setUserId('7255220723');
+      loadProfile('7255220723');
     }
   }, [searchParams]);
 
@@ -257,14 +257,14 @@ export function MassApiRunner() {
             <span className="text-[10px] text-indigo-400 font-mono block tracking-wider uppercase mb-1">Standard Resolution:</span>
             <p className="text-xs text-slate-300 leading-normal">
               1. Open your Telegram Messenger.<br/>
-              2. Go to the <strong className="text-white">@TEMPENCOREXBOT</strong> Bot.<br/>
+              2. Go to the <strong className="text-white">@CyberTraceX_Bot</strong> Bot.<br/>
               3. Press the <strong className="text-white">Start / Restart</strong> button.<br/>
               4. Relaunch this workspace tool.
             </p>
           </div>
 
           <a 
-            href="https://t.me/TEMPENCOREXBOT" 
+            href="https://t.me/CyberTraceX_Bot" 
             target="_blank" 
             referrerPolicy="no-referrer"
             className="w-full bg-indigo-600 hover:bg-indigo-700 transition font-bold py-3 px-4 rounded-xl inline-flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/25"
@@ -344,7 +344,7 @@ export function MassApiRunner() {
           </div>
 
           <a 
-            href={`https://t.me/TEMPENCOREXBOT?start=shop`}
+            href={`https://t.me/CyberTraceX_Bot?start=shop`}
             target="_blank"
             referrerPolicy="no-referrer"
             className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 transition font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/30 text-sm text-white"
@@ -392,7 +392,7 @@ export function MassApiRunner() {
           </div>
 
           <a 
-            href={`https://t.me/TEMPENCOREXBOT?start=shop`}
+            href={`https://t.me/CyberTraceX_Bot?start=shop`}
             target="_blank"
             referrerPolicy="no-referrer"
             className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 transition font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/30 text-sm text-white"

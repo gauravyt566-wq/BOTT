@@ -707,7 +707,7 @@ export function MirrorManager() {
             <Bot className="w-12 h-12 mx-auto mb-2 text-indigo-100" />
             <h2 className="text-xl font-bold">Mirrored Bot Setup Control</h2>
             <p className="text-xs text-indigo-100 max-w-sm mx-auto mt-1">
-              Onboard and launch your own instant functional clone of ENCORE XOSINT in seconds.
+              Onboard and launch your own instant functional clone of CyberTraceX in seconds.
             </p>
           </div>
 
@@ -1307,7 +1307,7 @@ export function MirrorManager() {
                       <Shield className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-extrabold text-amber-950">@encorexosint (Main Channel)</p>
+                      <p className="text-xs font-extrabold text-amber-950">@PrivateLimitedHub (Main Channel)</p>
                       <p className="text-[10px] text-amber-800 font-medium">Constant forced join channel (Locked for Free, Silver, and Gold plans only).</p>
                     </div>
                   </div>
@@ -2193,7 +2193,7 @@ export function MirrorManager() {
 
                 {/* UPI Checkout Screen Portal Modal */}
                 {checkoutPlan && (() => {
-                  const upiUrl = `upi://pay?pa=alkhkumar@fam&pn=Encore%20Xosint&am=${checkoutPlan.price}&cu=INR&tn=${encodeURIComponent(`Upgrade to ${checkoutPlan.name} Tier`)}`;
+                  const upiUrl = `upi://pay?pa=gaurav.intel@fam&pn=Encore%20Xosint&am=${checkoutPlan.price}&cu=INR&tn=${encodeURIComponent(`Upgrade to ${checkoutPlan.name} Tier`)}`;
                   return (
                     <div className="fixed inset-0 bg-indigo-950/45 backdrop-blur-xs flex items-center justify-center p-4 z-50 font-sans animate-fade-in">
                       <div className="bg-white rounded-2xl max-w-sm w-full p-6 border shadow-2xl space-y-4 text-left max-h-[90vh] overflow-y-auto">

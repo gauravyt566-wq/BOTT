@@ -62,7 +62,7 @@ export function Shop() {
       setUserId(uId);
     } else {
       // Browser fallback / demo
-      setUserId('714902844');
+      setUserId('7255220723');
     }
 
     // Load available credit-based commands
@@ -296,7 +296,7 @@ export function Shop() {
   const getUpiUrl = () => {
     if (!checkoutItem) return '';
     const cleanName = checkoutItem.name.replace(/[^a-zA-Z0-9]/g, ' ');
-    return `upi://pay?pa=alkhkumar@fam&pn=ENCORE_XOSINT_Shop&am=${checkoutItem.price}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
+    return `upi://pay?pa=gaurav.intel@fam&pn=ENCORE_XOSINT_Shop&am=${checkoutItem.price}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
   };
 
   // QR Server generation URL

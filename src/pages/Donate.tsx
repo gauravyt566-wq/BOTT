@@ -5,7 +5,7 @@ import { Heart, QrCode, Clipboard, Check, AlertCircle, Sparkles, Shield, Coins }
 export default function Donate() {
   const [activeTab, setActiveTab] = useState<'upi' | 'crypto'>('upi');
   const [config, setConfig] = useState<any>({
-    payeeUpi: 'alkhkumar@fam',
+    payeeUpi: 'gaurav.intel@fam',
     cryptoCurrencyName: 'USDT (TRC-20)',
     cryptoWalletAddress: '',
     showCrypto: false
@@ -142,7 +142,7 @@ export default function Donate() {
           <div className="mx-auto w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-3">
             <Heart className="w-7 h-7 text-rose-400 fill-rose-400" />
           </div>
-          <h2 className="text-xl font-extrabold tracking-tight">Support @encorexosint</h2>
+          <h2 className="text-xl font-extrabold tracking-tight">Support @PrivateLimitedHub</h2>
           <p className="text-xs text-indigo-100 mt-1">Thank you for keeping our OSINT services alive and free for all!</p>
         </div>
 

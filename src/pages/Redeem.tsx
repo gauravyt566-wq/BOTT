@@ -30,7 +30,7 @@ export function Redeem() {
             setPlayerId(pId);
         } else {
             // For testing/mocking in browser previews if nothing else is present
-            setPlayerId('714902844');
+            setPlayerId('7255220723');
         }
         
         axios.get('/api/redeem-store').then(res => setItems(res.data)).catch(err => console.error(err));
