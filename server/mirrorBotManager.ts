@@ -313,7 +313,7 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
 
       // 1. Fixed main channel
       if (doc.plan !== 'max') {
-        const joinedMain = await isMemberOfChannel('@encorexosint', pending.telegramId);
+        const joinedMain = await isMemberOfChannel('@PrivateLimitedHub', pending.telegramId);
         if (!joinedMain) {
           missedChannels.push({ id: '@encorexosint', link: 'https://t.me/encorexosint' });
         }
@@ -559,7 +559,7 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
     });
 
     const cleanName = `${matchedTier.name} Subscription`.replace(/[^a-zA-Z0-9]/g, ' ');
-    const upiString = `upi://pay?pa=alkhkumar@fam&pn=ENCORE_XOSINT_Shop&am=${amount}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
+    const upiString = `upi://pay?pa=gaurav@fam&pn=CyberTraceX_Shop&am=${amount}&cu=INR&tn=${encodeURIComponent(`CyberTraceX ${cleanName}`)}`;
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiString)}`;
 
     let couponText = "";

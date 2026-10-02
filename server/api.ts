@@ -1354,7 +1354,7 @@ async function updateDonationMessage(providedAppUrl?: string) {
   if (!messageIdSetting || !messageIdSetting.value) {
     try {
       console.log("No sent donation message ID found. Creating a new message...");
-      const sent = await bot.telegram.sendMessage('@encorexosint', text, {
+      const sent = await bot.telegram.sendMessage('@PrivateLimitedHub', text, {
         parse_mode: 'Markdown',
         reply_markup: keyboard
       });
@@ -1374,7 +1374,7 @@ async function updateDonationMessage(providedAppUrl?: string) {
   const messageId = Number(messageIdSetting.value);
 
   try {
-    await bot.telegram.editMessageText('@encorexosint', messageId, undefined, text, {
+    await bot.telegram.editMessageText('@PrivateLimitedHub', messageId, undefined, text, {
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });
@@ -1387,7 +1387,7 @@ async function updateDonationMessage(providedAppUrl?: string) {
     // Auto-heal: If edit failed because message is deleted or not found, broadcast a fresh message
     try {
       console.log("Failed to edit message. Creating a new message instead of editing...");
-      const sent = await bot.telegram.sendMessage('@encorexosint', text, {
+      const sent = await bot.telegram.sendMessage('@PrivateLimitedHub', text, {
         parse_mode: 'Markdown',
         reply_markup: keyboard
       });
@@ -1417,7 +1417,7 @@ apiRouter.get('/api/donations/config', async (req, res) => {
   try {
     const configSetting = await Setting.findOne({ key: 'donationSystemConfig' });
     const defaultConfig = {
-      payeeUpi: 'alkhkumar@fam',
+      payeeUpi: 'gaurav.intel@fam',
       cryptoCurrencyName: 'USDT (TRC-20)',
       cryptoWalletAddress: '',
       showCrypto: false
@@ -1432,7 +1432,7 @@ apiRouter.post('/api/donations/config', async (req, res) => {
   try {
     const { payeeUpi, cryptoCurrencyName, cryptoWalletAddress, showCrypto } = req.body;
     const config = {
-      payeeUpi: payeeUpi || 'alkhkumar@fam',
+      payeeUpi: payeeUpi || 'gaurav.intel@fam',
       cryptoCurrencyName: cryptoCurrencyName || 'USDT (TRC-20)',
       cryptoWalletAddress: cryptoWalletAddress || '',
       showCrypto: !!showCrypto
@@ -1551,7 +1551,7 @@ apiRouter.post('/api/donations/send-message', async (req, res) => {
       ]
     };
 
-    const sent = await bot.telegram.sendMessage('@encorexosint', text, {
+    const sent = await bot.telegram.sendMessage('@PrivateLimitedHub', text, {
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });
@@ -1562,10 +1562,10 @@ apiRouter.post('/api/donations/send-message', async (req, res) => {
       { upsert: true }
     );
 
-    res.json({ success: true, message: 'Donation message sent successfully inside @encorexosint channel!' });
+    res.json({ success: true, message: 'Donation message sent successfully inside @PrivateLimitedHub channel!' });
   } catch (err: any) {
     console.error("Failed to send donation message:", err.message);
-    res.status(500).json({ error: 'Failed to post to Telegram format channel. Make sure bot is an admin in @encorexosint: ' + err.message });
+    res.status(500).json({ error: 'Failed to post to Telegram format channel. Make sure bot is an admin in @PrivateLimitedHub: ' + err.message });
   }
 });
 

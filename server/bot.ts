@@ -73,7 +73,7 @@ async function showBotShopMenu(ctx: any) {
   if (isGroup) {
     const botUsername = ctx.botInfo?.username || "bot";
     await ctx.reply(
-      `🛒 *ENCORE XOSINT Shop*\n\nHey there, you can buy premium subscription or additional credits directly in our shop! Check it out in private chat:`,
+      `🛒 *𝐂ʏʙᴇʀ𝐓ʀᴀᴄᴇ𝐗 Shop*\n\nHey there, you can buy premium subscription or additional credits directly in our shop! Check it out in private chat:`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -95,7 +95,7 @@ async function showBotShopMenu(ctx: any) {
   const appUrl = getAppUrl();
   const shopUrl = `${appUrl}/shop?userid=${ctx.from?.id || ""}`;
 
-  const messageText = `🛍️ *ENCORE XOSINT Bot Shop* 🛍️\n\n` +
+  const messageText = `🛍️ *𝐂ʏʙᴇʀ𝐓ʀᴀᴄᴇ𝐗 Bot Shop* 🛍️\n\n` +
     `Welcome to the bot shop! Here you can buy premium membership subscriptions or buy separate credits for specific command integrations.\n\n` +
     `Choose an option below to proceed:`;
 
@@ -132,7 +132,7 @@ async function generateSubCheckoutMessage(ctx: any, userId: string, matchedTier:
   });
 
   const cleanName = `${matchedTier.name} Subscription`.replace(/[^a-zA-Z0-9]/g, ' ');
-  const upiString = `upi://pay?pa=alkhkumar@fam&pn=ENCORE_XOSINT_Shop&am=${amount}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
+  const upiString = `upi://pay?pa=gaurav.intel@fam&pn=ENCORE_XOSINT_Shop&am=${amount}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiString)}`;
 
   let couponText = "";
@@ -342,7 +342,7 @@ async function handleCreditsQtyInput(ctx: any, userId: string, text: string) {
 
   // Construct standard UPI payment URL
   const cleanName = `${qty} credits for ${cmd.command}`.replace(/[^a-zA-Z0-9]/g, ' ');
-  const upiString = `upi://pay?pa=alkhkumar@fam&pn=ENCORE_XOSINT_Shop&am=${finalPrice}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
+  const upiString = `upi://pay?pa=gaurav.intel@fam&pn=ENCORE_XOSINT_Shop&am=${finalPrice}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiString)}`;
 
   let discountInfo = "";
@@ -708,7 +708,7 @@ export async function initializeBot() {
 
         // Check Main Group (Encore)
         const isMainGroup =
-          String(ctx.chat.username).toLowerCase() === "encorexg";
+          String(ctx.chat.username).toLowerCase() === "True_X_Finder";
         if (isMainGroup) {
           await groupDoc.save();
         } else {
@@ -803,7 +803,7 @@ export async function initializeBot() {
                       [
                         {
                           text: "Contact Admin",
-                          url: "https://t.me/modifucker",
+                          url: "https://t.me/ZephrexXx",
                           style: "success",
                         } as any,
                       ],
@@ -1216,7 +1216,7 @@ export async function initializeBot() {
             ? Number(defaultGrpCredSetting.value)
             : 50;
 
-        let txt = "🤖 *How to use ENCORE XOSINT*\n\n";
+        let txt = "🤖 *How to use 𝐂ʏʙᴇʀ𝐓ʀᴀᴄᴇ𝐗*\n\n";
         txt +=
           "This bot provides various advanced search and utility commands. \n\n";
 
@@ -1234,7 +1234,7 @@ export async function initializeBot() {
           "✨ Use `/profile` to check your exact global/command credit usage.\n\n";
 
         txt +=
-          "↗️ *Join our Main Group:* [ENCOREX GROUP](https://t.me/encorexg)\n\n";
+          "↗️ *Join our Main Group:* [TrueX Finder](https://t.me/True_X_Finder)\n\n";
 
         txt += "⚡️ *Available Commands*\n\n";
         for (const c of commands) {
@@ -1556,7 +1556,7 @@ export async function initializeBot() {
           ],
         };
         const txt =
-          "✨ *Welcome to ENCORE XOSINT* ✨\n\n✅ *Status:* Bot is fully operational.\n\nYou can get multiple information using this bot. Try exploring some commands or use /help to see how it works!";
+          "✨ *Welcome to 𝐂ʏʙᴇʀ𝐓ʀᴀᴄᴇ𝐗* ✨\n\n✅ *Status:* Bot is fully operational.\n\nYou can get multiple information using this bot. Try exploring some commands or use /help to see how it works!";
         if (ctx.callbackQuery && ctx.callbackQuery.message) {
           await ctx.editMessageText(txt, {
             parse_mode: "Markdown",
@@ -1964,7 +1964,7 @@ export async function initializeBot() {
             const shopUrl = `${appUrl}/shop?userid=${ctx.from?.id || ""}`;
 
             await ctx.reply(
-              "🛍️ *ENCORE XOSINT Shop* 🛍️\n\nClick the button below to open the shop and unlock premium access or custom command credits packs!",
+              "🛍️ *𝐂ʏʙᴇʀ𝐓ʀᴀᴄᴇ𝐗 Shop* 🛍️\n\nClick the button below to open the shop and unlock premium access or custom command credits packs!",
               {
                 ...replyOptions,
                 reply_markup: {
@@ -2012,7 +2012,7 @@ export async function initializeBot() {
           const massRunUrl = `${appUrl}/mass-run?userid=${ctx.from?.id || ""}`;
 
           await ctx.reply(
-            "✨ *Welcome to ENCORE XOSINT* ✨\n\n✅ *Status:* Bot is fully operational.\n\nYou can get multiple information using this bot. Try exploring some commands or use /help to see how it works!",
+            "✨ *Welcome to 𝐂ʏʙᴇʀ𝐓ʀᴀᴄᴇ𝐗* ✨\n\n✅ *Status:* Bot is fully operational.\n\nYou can get multiple information using this bot. Try exploring some commands or use /help to see how it works!",
             {
               ...replyOptions,
               reply_markup: {
@@ -2056,7 +2056,7 @@ export async function initializeBot() {
           );
         } else {
           const commands = await Command.find({});
-          let txt = "⚡️ *ENCORE XOSINT - Available Commands* ⚡\n\n";
+          let txt = "⚡️ *𝐂ʏʙᴇʀ𝐓ʀᴀᴄᴇ𝐗 - Available Commands* ⚡\n\n";
           for (const c of commands) {
             txt += `• \`${c.command}\` - ${c.description || "No description"}\n`;
           }
@@ -2289,7 +2289,7 @@ export async function initializeBot() {
                     [
                       {
                         text: "↗️ Join Group (Free)",
-                        url: "https://t.me/encorexg",
+                        url: "https://t.me/True_X_Finder",
                         style: "primary",
                       } as any,
                     ],
@@ -2367,7 +2367,7 @@ export async function initializeBot() {
               // Allow execution by not returning
             } else {
               console.log(`[Bot Text Handler] Logic block rejection (Requirement 4): User ID ${ctx.from?.id} has no remaining credits for "${userCommand}". Daily Used: ${usedToday}/${limit}, Common credits: ${commonCredits}. Sending limit notice block.`);
-              let buyUrl = cmdDef.buyCreditsUrl || "https://t.me/modifucker";
+              let buyUrl = cmdDef.buyCreditsUrl || "https://t.me/ZephrexXx";
               if (cmdDef.isCreditBased && cmdDef.isForSale) {
                 const botUsername = ctx.botInfo?.username || "bot";
                 buyUrl = `https://t.me/${botUsername}?start=shop`;
