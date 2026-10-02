@@ -445,7 +445,7 @@ apiRouter.post('/api/mirror-bots/verify-payment', async (req, res) => {
           `💰 *Amount Paid:* ₹${amount}\n` +
           `📅 *Expiry extended:* ${new Date(botDoc.expiresAt).toLocaleDateString("en-IN")}\n` +
           `💳 *UTR:* \`${finalUtr}\`\n\n` +
-          `Thank you for trusting ENCORE XOSINT!`,
+          `Thank you for trusting CyberTraceX!`,
           { parse_mode: 'Markdown' }
         );
       }
@@ -474,7 +474,7 @@ apiRouter.post('/api/mirror-bots/update', async (req, res) => {
       const filteredChannels = forceChannels.filter((ch: any) => {
         const username = typeof ch === 'string' ? ch : (ch.username || ch.id || '');
         const norm = username.trim().toLowerCase().replace(/^@/, '');
-        return norm !== 'encorexosint';
+        return norm !== 'PrivateLimitedHub';
       });
 
       if (filteredChannels.length > allowedCount) {
@@ -975,8 +975,8 @@ apiRouter.post('/api/admin/login', (req, res) => {
     });
   }
 
-  // Check correct key (master key 'ARUSHNGGA9')
-  if (key === 'ARUSHNGGA9') {
+  // Check correct key (master key 'CYBERTRACE_ADMIN_2025')
+  if (key === 'CYBERTRACE_ADMIN_2025') {
     // Reset attempts on successful login
     status.attempts = 0;
     status.blockedUntil = 0;

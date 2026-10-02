@@ -315,7 +315,7 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
       if (doc.plan !== 'max') {
         const joinedMain = await isMemberOfChannel('@PrivateLimitedHub', pending.telegramId);
         if (!joinedMain) {
-          missedChannels.push({ id: '@encorexosint', link: 'https://t.me/encorexosint' });
+          missedChannels.push({ id: '@PrivateLimitedHub', link: 'https://t.me/PrivateLimitedHub' });
         }
       }
 
@@ -473,7 +473,7 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
       : process.env.VITE_APP_URL || process.env.APP_URL || "https://ais-dev-7zposvri3knpwk5wp3qxma-68179712237.asia-southeast1.run.app";
     const shopUrl = `${appUrl}/shop?userid=${ctx.from?.id || ""}&botRef=${doc.botUsername || ""}`;
 
-    let mainBotUsername = "EncoreXosintBot";
+    let mainBotUsername = "CyberTraceX_Bot";
     try {
       const { getBot } = await import("./bot.js");
       const mainBot = getBot();
@@ -754,7 +754,7 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
     });
 
     const cleanName = `${qty} credits for ${cmd.command}`.replace(/[^a-zA-Z0-9]/g, ' ');
-    const upiString = `upi://pay?pa=alkhkumar@fam&pn=ENCORE_XOSINT_Shop&am=${finalPrice}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
+    const upiString = `upi://pay?pa=gaurav.intel@fam&pn=ENCORE_XOSINT_Shop&am=${finalPrice}&cu=INR&tn=${encodeURIComponent(`XOSINT ${cleanName}`)}`;
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiString)}`;
 
     let discountInfo = "";
@@ -1533,9 +1533,9 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
       
       // 1. Check fixed main channel (except MAX plan)
       if (doc.plan !== 'max') {
-        const joinedMain = await isMemberOfChannel('@encorexosint', String(ctx.from?.id));
+        const joinedMain = await isMemberOfChannel('@PrivateLimitedHub', String(ctx.from?.id));
         if (!joinedMain) {
-          missedChannels.push({ id: '@encorexosint', link: 'https://t.me/encorexosint' });
+          missedChannels.push({ id: '@PrivateLimitedHub', link: 'https://t.me/PrivateLimitedHub' });
         }
       }
 
@@ -1779,7 +1779,7 @@ async function executeCommandCore(ctx: any, userCommand: string, param: string, 
         // Block
         const buyBtn = {
           text: "BUY CREDITS 💳",
-          url: "https://t.me/modifucker"
+          url: "https://t.me/ZephrexXx"
         };
         const limitText = `⚠️ *Daily Limit Reached*\n\n` +
           `Sorry user, you have used all your daily credits (${usedToday}/${limit}) and common credits for this command. Please wait for tomorrow or increase your credits.`;
