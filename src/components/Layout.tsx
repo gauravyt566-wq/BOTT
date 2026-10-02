@@ -34,7 +34,7 @@ export function Layout() {
     <div className="flex flex-col-reverse md:flex-row bg-gray-50 h-screen w-full font-sans overflow-hidden">
       <aside className="w-full md:w-64 bg-white border-t md:border-t-0 md:border-r border-gray-200 flex flex-row md:flex-col shrink-0 z-10">
         <div className="hidden md:flex h-16 items-center px-6 border-b border-gray-200 font-bold text-lg tracking-tight text-indigo-600 shrink-0">
-          ENCORE XOSINT
+          CyberTraceX
         </div>
         <div className="flex-1 flex flex-col justify-between overflow-x-auto md:overflow-y-auto">
           <nav className="flex flex-row md:flex-col py-2 px-2 md:py-4 md:px-3 gap-1 whitespace-nowrap">
