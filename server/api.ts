@@ -381,20 +381,20 @@ apiRouter.post('/api/mirror-bots/verify-payment', async (req, res) => {
 
     let foundTxn: any = null;
     try {
-      const utrRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
-      if (utrRes.data && utrRes.utrRes.data.results && utrRes.data.results.length > 0) {
+      const utrRes = await axios.get(`https://famnify.vercel.app/fampay?utr=${cleanPaymentId}`);
+      if (utrRes.data && utrRes.data.found && utrRes.data.results && utrRes.data.results.length > 0) {
         foundTxn = utrRes.data.results.find((item: any) => {
-          const isSuccess = true /* Fampay success flag always true in new endpoint */;
+          const isSuccess = String(item.Payment).toLowerCase() === 'success';
           const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
           return isSuccess && isAmountMatch;
         });
       }
 
       if (!foundTxn) {
-        const idRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
-        if (idRes.data && idRes.idRes.data.results && idRes.data.results.length > 0) {
+        const idRes = await axios.get(`https://famnify.vercel.app/fampay?id=${cleanPaymentId}`);
+        if (idRes.data && idRes.data.found && idRes.data.results && idRes.data.results.length > 0) {
           foundTxn = idRes.data.results.find((item: any) => {
-            const isSuccess = true /* Fampay success flag always true in new endpoint */;
+            const isSuccess = String(item.Payment).toLowerCase() === 'success';
             const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
             return isSuccess && isAmountMatch;
           });
@@ -1595,10 +1595,10 @@ apiRouter.post('/api/donations/verify-upi', async (req, res) => {
     let foundTxn: any = null;
     try {
       // Query 1: Try as UTR
-      const utrRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
-      if (utrRes.data && utrRes.utrRes.data.results && utrRes.data.results.length > 0) {
+      const utrRes = await axios.get(`https://famnify.vercel.app/fampay?utr=${cleanUtr}`);
+      if (utrRes.data && utrRes.data.found && utrRes.data.results && utrRes.data.results.length > 0) {
         foundTxn = utrRes.data.results.find((item: any) => {
-          const isSuccess = true /* Fampay success flag always true in new endpoint */;
+          const isSuccess = String(item.Payment).toLowerCase() === 'success';
           const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
           return isSuccess && isAmountMatch;
         });
@@ -1606,10 +1606,10 @@ apiRouter.post('/api/donations/verify-upi', async (req, res) => {
 
       // Query 2: Try as ID if not found
       if (!foundTxn) {
-        const idRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
-        if (idRes.data && idRes.idRes.data.results && idRes.data.results.length > 0) {
+        const idRes = await axios.get(`https://famnify.vercel.app/fampay?id=${cleanUtr}`);
+        if (idRes.data && idRes.data.found && idRes.data.results && idRes.data.results.length > 0) {
           foundTxn = idRes.data.results.find((item: any) => {
-            const isSuccess = true /* Fampay success flag always true in new endpoint */;
+            const isSuccess = String(item.Payment).toLowerCase() === 'success';
             const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
             return isSuccess && isAmountMatch;
           });
@@ -2436,10 +2436,10 @@ apiRouter.post('/api/shop/verify-payment', async (req, res) => {
     let foundTxn: any = null;
     try {
       // Query 1: Try as UTR
-      const utrRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
-      if (utrRes.data && utrRes.utrRes.data.results && utrRes.data.results.length > 0) {
+      const utrRes = await axios.get(`https://famnify.vercel.app/fampay?utr=${cleanPaymentId}`);
+      if (utrRes.data && utrRes.data.found && utrRes.data.results && utrRes.data.results.length > 0) {
         foundTxn = utrRes.data.results.find((item: any) => {
-          const isSuccess = true /* Fampay success flag always true in new endpoint */;
+          const isSuccess = String(item.Payment).toLowerCase() === 'success';
           const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0; // tolerate small roundoffs
           return isSuccess && isAmountMatch;
         });
@@ -2447,10 +2447,10 @@ apiRouter.post('/api/shop/verify-payment', async (req, res) => {
 
       // Query 2: Try as ID/Transaction if not found
       if (!foundTxn) {
-        const idRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
-        if (idRes.data && idRes.idRes.data.results && idRes.data.results.length > 0) {
+        const idRes = await axios.get(`https://famnify.vercel.app/fampay?id=${cleanPaymentId}`);
+        if (idRes.data && idRes.data.found && idRes.data.results && idRes.data.results.length > 0) {
           foundTxn = idRes.data.results.find((item: any) => {
-            const isSuccess = true /* Fampay success flag always true in new endpoint */;
+            const isSuccess = String(item.Payment).toLowerCase() === 'success';
             const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
             return isSuccess && isAmountMatch;
           });
@@ -3225,3 +3225,4 @@ apiRouter.get('/api/mass-run/history', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
