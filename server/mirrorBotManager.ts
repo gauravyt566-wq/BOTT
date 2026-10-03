@@ -1,7 +1,7 @@
 import { Telegraf, Markup } from "telegraf";
 import axios from "axios";
 import mongoose from "mongoose";
-import { MirrorBot, Command, BotUser, BotGroup, Setting, Statlog, PendingAction, connectDB, MirrorWallet, MirrorWithdrawalRequest, UsedTransaction, Coupon, getCachedAppUrl } from "./db.js";
+import { MirrorBot, Command, BotUser, BotGroup, Setting, Statlog, PendingAction, connectDB, MirrorWallet, MirrorWithdrawalRequest, UsedTransaction, Coupon, MirrorOwnerPoints, getCachedAppUrl } from "./db.js";
 import { isMemberOfChannel } from "./bot.js";
 
 const activeMirroredBots = new Map<string, Telegraf>();
@@ -23,27 +23,16 @@ async function verifyFampayPayment(paymentId: string, amount: number) {
   let foundTxn: any = null;
 
   try {
-    const utrRes = await axios.get(`https://famnify.vercel.app/fampay?utr=${cleanPaymentId}`);
-    if (utrRes.data && utrRes.data.found && utrRes.data.results && utrRes.data.results.length > 0) {
-      foundTxn = utrRes.data.results.find((item: any) => {
-        const isSuccess = String(item.Payment).toLowerCase() === 'success';
+    const res = await axios.get(`https://fampay-ten.vercel.app/search?q=${encodeURIComponent(cleanPaymentId)}`, { timeout: 15000 });
+    if (res.data && res.data.results && Array.isArray(res.data.results) && res.data.results.length > 0) {
+      foundTxn = res.data.results.find((item: any) => {
+        const isSuccess = !item.Payment || String(item.Payment).toLowerCase() === 'success';
         const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
         return isSuccess && isAmountMatch;
       });
     }
-
-    if (!foundTxn) {
-      const idRes = await axios.get(`https://famnify.vercel.app/fampay?id=${cleanPaymentId}`);
-      if (idRes.data && idRes.data.found && idRes.data.results && idRes.data.results.length > 0) {
-        foundTxn = idRes.data.results.find((item: any) => {
-          const isSuccess = String(item.Payment).toLowerCase() === 'success';
-          const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
-          return isSuccess && isAmountMatch;
-        });
-      }
-    }
-  } catch (err) {
-    console.error("Fampay verification error in mirrorBotManager:", err);
+  } catch (err: any) {
+    console.error("Fampay verification error in mirrorBotManager:", err.message);
   }
   return foundTxn;
 }
@@ -131,12 +120,6 @@ export async function checkAndResetIntegrationPoints(botDoc: any): Promise<boole
   }
 
   // Find or create central usage record for this owner to share across all her/his active or recreation bots
-  const MirrorOwnerPoints = mongoose.models.MirrorOwnerPoints || mongoose.model('MirrorOwnerPoints', new mongoose.Schema({
-    ownerTelegramId: { type: String, required: true, unique: true },
-    integrationPointsUsed: { type: Number, default: 0 },
-    integrationPointsMonth: { type: String, default: "" }
-  }, { timestamps: true }), 'encore_mirror_owner_points');
-
   let ownerPoints = await MirrorOwnerPoints.findOne({ ownerTelegramId: ownerId });
   if (!ownerPoints) {
     ownerPoints = await MirrorOwnerPoints.create({
@@ -794,13 +777,23 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
     const amount = stateData.amount;
     const productId = stateData.productId;
 
-    const waitMsg = await ctx.reply("🔍 *Verifying payment transaction...* Please wait up to 10 seconds...", { parse_mode: "Markdown" });
+    const replyOptions: any = {
+      parse_mode: "Markdown",
+      reply_parameters: ctx.message ? { message_id: ctx.message.message_id } : undefined,
+    };
+    let waitMsg: any = null;
+    try {
+      waitMsg = await ctx.reply("🔍 Searching... Please wait...", replyOptions);
+    } catch (e) {
+      waitMsg = await ctx.reply("🔍 Searching... Please wait...").catch(() => null);
+    }
 
     try {
       const spentTxn = await UsedTransaction.findOne({ transactionId: paymentId });
       if (spentTxn) {
-        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+        if (waitMsg && waitMsg.message_id) await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
         await ctx.reply("⚠️ *Already Used*\n\nThis transaction/UTR ID has already been verified and used in our shop before.", {
+          ...replyOptions,
           reply_markup: {
             inline_keyboard: [[{ text: "❌ Cancel Checkout", callback_data: "shop_cancel_payment" }]]
           }
@@ -828,8 +821,9 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
           }
         } catch (logErr) {}
 
-        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+        if (waitMsg && waitMsg.message_id) await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
         await ctx.reply(`⚠️ *Transaction Not Found*\n\nPayment transaction was not found on Fampay or the amount does not match *₹${amount}*.\n\nPlease check again and send correct ID or click cancel:`, {
+          ...replyOptions,
           reply_markup: {
             inline_keyboard: [[{ text: "❌ Cancel Checkout", callback_data: "shop_cancel_payment" }]]
           }
@@ -843,8 +837,8 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
       const doubleSpentCheckUtr = await UsedTransaction.findOne({ transactionId: finalUtr });
       const doubleSpentCheckTxn = await UsedTransaction.findOne({ transactionId: finalTxnId });
       if (doubleSpentCheckUtr || doubleSpentCheckTxn) {
-        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-        await ctx.reply("⚠️ *Already Spent*\n\nThis payment transaction was already applied for another purchase. Checkout canceled.");
+        if (waitMsg && waitMsg.message_id) await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+        await ctx.reply("⚠️ *Already Spent*\n\nThis payment transaction was already applied for another purchase. Checkout canceled.", replyOptions);
         return;
       }
 
@@ -857,8 +851,8 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
 
       const userDoc = await BotUser.findOne({ telegramId: userId });
       if (!userDoc) {
-        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-        await ctx.reply("❌ Error: Profile not found. Please run /start and try again.");
+        if (waitMsg && waitMsg.message_id) await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+        await ctx.reply("❌ Error: Profile not found. Please run /start and try again.", replyOptions);
         botShopStates.delete(userId);
         return;
       }
@@ -933,12 +927,12 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
       }
 
       botShopStates.delete(userId);
-      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-      await ctx.reply(`🎉 *Purchase Successful!*\n\nYour payment of *₹${amount}* was verified.\n✅ *Product:* ${finalProductName}\n\nThank you for supporting us! Enjoy your purchase.`);
+      if (waitMsg && waitMsg.message_id) await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      await ctx.reply(`🎉 *Purchase Successful!*\n\nYour payment of *₹${amount}* was verified.\n✅ *Product:* ${finalProductName}\n\nThank you for supporting us! Enjoy your purchase.`, replyOptions);
     } catch (err: any) {
       console.error(err);
-      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-      await ctx.reply("❌ Error finalizing transaction. Please message support.");
+      if (waitMsg && waitMsg.message_id) await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      await ctx.reply("❌ Error finalizing transaction. Please message support.", replyOptions);
     }
   };
 
@@ -1691,12 +1685,6 @@ async function executeCommandCore(ctx: any, userCommand: string, param: string, 
       const pointsLimit = getBotIntegrationPointsLimit(freshBotDoc.plan);
       const ownerId = freshBotDoc.ownerTelegramId;
       if (ownerId) {
-        const MirrorOwnerPoints = mongoose.models.MirrorOwnerPoints || mongoose.model('MirrorOwnerPoints', new mongoose.Schema({
-          ownerTelegramId: { type: String, required: true, unique: true },
-          integrationPointsUsed: { type: Number, default: 0 },
-          integrationPointsMonth: { type: String, default: "" }
-        }, { timestamps: true }), 'encore_mirror_owner_points');
-
         let ownerPoints = await MirrorOwnerPoints.findOne({ ownerTelegramId: ownerId });
         if (!ownerPoints) {
           ownerPoints = await MirrorOwnerPoints.create({
@@ -1869,6 +1857,7 @@ async function executeCommandCore(ctx: any, userCommand: string, param: string, 
 
   // Query API
   let apiResponseText = "";
+  let searchMsg: any = null;
   if (cmdDef.isApi && cmdDef.apiUrl) {
     let finalUrl = cmdDef.apiUrl;
     if (finalUrl.includes("{param}") && !param) {
@@ -1879,6 +1868,14 @@ async function executeCommandCore(ctx: any, userCommand: string, param: string, 
     if (param) finalUrl = finalUrl.replace("{param}", encodeURIComponent(param));
 
     try {
+      searchMsg = await ctx.reply("🔍 Searching... Please wait...", replyOptions);
+    } catch (smErr) {
+      try {
+        searchMsg = await ctx.reply("🔍 Searching... Please wait...");
+      } catch (smErr2) {}
+    }
+
+    try {
       const res = await axios.get(finalUrl, { timeout: 15000 });
       if (typeof res.data === "object") {
         apiResponseText = JSON.stringify(res.data, null, 2);
@@ -1887,6 +1884,12 @@ async function executeCommandCore(ctx: any, userCommand: string, param: string, 
       }
     } catch (e: any) {
       apiResponseText = `Error fetching data: ${e.response?.status ? `Status ${e.response.status}` : e.message}`;
+    }
+
+    if (searchMsg && searchMsg.message_id && ctx.chat?.id) {
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, searchMsg.message_id);
+      } catch (delErr) {}
     }
   }
 

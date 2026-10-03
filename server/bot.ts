@@ -38,26 +38,13 @@ async function verifyFampayPayment(paymentId: string, amount: number) {
   let foundTxn: any = null;
 
   try {
-    // Query 1: Try as UTR
-    const utrRes = await axios.get(`https://famnify.vercel.app/fampay?utr=${cleanPaymentId}`);
-    if (utrRes.data && utrRes.data.found && utrRes.data.results && utrRes.data.results.length > 0) {
-      foundTxn = utrRes.data.results.find((item: any) => {
-        const isSuccess = String(item.Payment).toLowerCase() === 'success';
+    const res = await axios.get(`https://fampay-ten.vercel.app/search?q=${encodeURIComponent(cleanPaymentId)}`, { timeout: 15000 });
+    if (res.data && res.data.results && Array.isArray(res.data.results) && res.data.results.length > 0) {
+      foundTxn = res.data.results.find((item: any) => {
+        const isSuccess = !item.Payment || String(item.Payment).toLowerCase() === 'success';
         const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
         return isSuccess && isAmountMatch;
       });
-    }
-
-    // Query 2: Try as ID/Transaction if not found
-    if (!foundTxn) {
-      const idRes = await axios.get(`https://famnify.vercel.app/fampay?id=${cleanPaymentId}`);
-      if (idRes.data && idRes.data.found && idRes.data.results && idRes.data.results.length > 0) {
-        foundTxn = idRes.data.results.find((item: any) => {
-          const isSuccess = String(item.Payment).toLowerCase() === 'success';
-          const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
-          return isSuccess && isAmountMatch;
-        });
-      }
     }
   } catch (err: any) {
     console.error("[Bot Fampay verification error]", err.message);
@@ -388,15 +375,29 @@ async function handleUtrVerificationInput(ctx: any, userId: string, text: string
   const amount = stateData.amount;
   const productId = stateData.productId;
 
-  const waitMsg = await ctx.reply("🔍 *Verifying payment transaction...* Please wait up to 10 seconds...", { parse_mode: "Markdown" });
+  const replyOptions: any = {
+    parse_mode: "Markdown",
+    reply_parameters: ctx.message?.message_id ? { message_id: ctx.message.message_id } : undefined,
+  };
+
+  // 1. First send a temporary message: "🔍 Searching... Please wait..."
+  let waitMsg: any = null;
+  try {
+    waitMsg = await ctx.reply("🔍 Searching... Please wait...", replyOptions);
+  } catch (e) {
+    waitMsg = await ctx.reply("🔍 Searching... Please wait...").catch(() => null);
+  }
 
   try {
     // 1. Double spend protection
     const spentTxn = await UsedTransaction.findOne({ transactionId: paymentId });
     if (spentTxn) {
-      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      if (waitMsg && waitMsg.message_id && ctx.chat?.id) {
+        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      }
       await ctx.reply("⚠️ *Already Used*\n\nThis transaction/UTR ID has already been verified and used in our shop before. Please check again or click below to cancel:", {
         parse_mode: "Markdown",
+        ...replyOptions,
         reply_markup: {
           inline_keyboard: [[{ text: "❌ Cancel Checkout", callback_data: "shop_cancel_payment" }]]
         }
@@ -427,9 +428,12 @@ async function handleUtrVerificationInput(ctx: any, userId: string, text: string
         console.error("Failed to log failed txn in bot.ts:", logErr);
       }
 
-      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      if (waitMsg && waitMsg.message_id && ctx.chat?.id) {
+        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      }
       await ctx.reply(`⚠️ *Transaction Not Found*\n\nPayment transaction was not found on Fampay or the amount does not match *₹${amount}*.\n\nMake sure:\n- Core payment is completed successfully.\n- You entered the correct UTR / Transaction ID.\n- You paid the exact amount: *₹${amount}*\n\nPlease respond with the correct UTR/ID, or click cancel:`, {
         parse_mode: "Markdown",
+        ...replyOptions,
         reply_markup: {
           inline_keyboard: [
             [{ text: "❌ Cancel Checkout", callback_data: "shop_cancel_payment" }]
@@ -446,9 +450,12 @@ async function handleUtrVerificationInput(ctx: any, userId: string, text: string
     const doubleSpentCheckUtr = await UsedTransaction.findOne({ transactionId: finalUtr });
     const doubleSpentCheckTxn = await UsedTransaction.findOne({ transactionId: finalTxnId });
     if (doubleSpentCheckUtr || doubleSpentCheckTxn) {
-      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      if (waitMsg && waitMsg.message_id && ctx.chat?.id) {
+        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      }
       await ctx.reply("⚠️ *Already Spent*\n\nThis payment transaction was already applied/credited for another purchase. Checkout canceled.", {
         parse_mode: "Markdown",
+        ...replyOptions,
         reply_markup: {
           inline_keyboard: [[{ text: "❌ Cancel Checkout", callback_data: "shop_cancel_payment" }]]
         }
@@ -467,8 +474,10 @@ async function handleUtrVerificationInput(ctx: any, userId: string, text: string
     // 4. Update core user profile
     const userDoc = await BotUser.findOne({ telegramId: userId });
     if (!userDoc) {
-      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-      await ctx.reply("❌ Error: Your user profile does not exist in our database. Please run /start and try again.");
+      if (waitMsg && waitMsg.message_id && ctx.chat?.id) {
+        await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+      }
+      await ctx.reply("❌ Error: Your user profile does not exist in our database. Please run /start and try again.", replyOptions);
       botShopStates.delete(userId);
       return;
     }
@@ -546,7 +555,9 @@ async function handleUtrVerificationInput(ctx: any, userId: string, text: string
 
     // 5. Clear state & Show Celebratory Success Message
     botShopStates.delete(userId);
-    await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+    if (waitMsg && waitMsg.message_id && ctx.chat?.id) {
+      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+    }
 
     const displayProductName = finalProductName || (productId === 'premium' ? '👑 Premium Subscription (Monthly)' : `💎 ${stateData.creditsCount || 10} Common Credits for ${productId}`);
     
@@ -573,6 +584,7 @@ async function handleUtrVerificationInput(ctx: any, userId: string, text: string
 
     await ctx.reply(celebrationText, {
       parse_mode: "Markdown",
+      ...replyOptions,
       reply_markup: {
         inline_keyboard: [[{ text: "🔙 Go to Start Menu", callback_data: "view_start" }]]
       }
@@ -580,9 +592,12 @@ async function handleUtrVerificationInput(ctx: any, userId: string, text: string
 
   } catch (err: any) {
     console.error("UTR verification exception:", err);
-    await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+    if (waitMsg && waitMsg.message_id && ctx.chat?.id) {
+      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+    }
     await ctx.reply(`❌ *Verification Service Error*\n\n${err.message || 'An error occurred during verification.'}\n\nPlease retry sending your Transaction ID / UTR or click cancel below:`, {
       parse_mode: "Markdown",
+      ...replyOptions,
       reply_markup: {
         inline_keyboard: [
           [{ text: "❌ Cancel Checkout", callback_data: "shop_cancel_payment" }]
@@ -668,6 +683,14 @@ export async function initializeBot() {
     let groupDoc = null;
     let limitInlineButton: any = null;
 
+    const chatUsername = String(ctx.chat?.username || "").toLowerCase();
+    const chatTitle = String(ctx.chat?.title || "").toLowerCase();
+    let isMainGroup =
+      Boolean(isGroup &&
+      (chatUsername === "true_x_finder" ||
+        chatTitle.includes("truex finder") ||
+        chatTitle.includes("true_x_finder")));
+
     if (shouldIncrementCredit && ctx.from?.id) {
       let uDoc = await BotUser.findOne({ telegramId: String(ctx.from.id) });
       if (uDoc) {
@@ -701,14 +724,15 @@ export async function initializeBot() {
     if (isGroup && ctx.chat?.id) {
       groupDoc = await BotGroup.findOne({ telegramId: String(ctx.chat.id) });
       if (groupDoc) {
+        if (groupDoc.isUnlimited) {
+          isMainGroup = true;
+        }
         const istOffsetMs = 5.5 * 60 * 60 * 1000;
         const today = new Date(Date.now() + istOffsetMs)
           .toISOString()
           .split("T")[0];
 
-        // Check Main Group (Encore)
-        const isMainGroup =
-          String(ctx.chat.username).toLowerCase() === "True_X_Finder";
+        // Check Main Group (TrueX Finder)
         if (isMainGroup) {
           await groupDoc.save();
         } else {
@@ -842,6 +866,7 @@ export async function initializeBot() {
     }
 
     let apiResponseText = "";
+    let searchMsg: any = null;
     if (cmdDef.isApi && cmdDef.apiUrl) {
       let finalUrl = cmdDef.apiUrl;
 
@@ -858,6 +883,16 @@ export async function initializeBot() {
       if (param)
         finalUrl = finalUrl.replace("{param}", encodeURIComponent(param));
 
+      // 1. First send a temporary message: "🔍 Searching... Please wait..."
+      try {
+        searchMsg = await ctx.reply("🔍 Searching... Please wait...", replyOptions);
+      } catch (smErr) {
+        try {
+          searchMsg = await ctx.reply("🔍 Searching... Please wait...");
+        } catch (smErr2) {}
+      }
+
+      // 2. Process the API call
       try {
         const res = await axios.get(finalUrl, { timeout: 15000 });
         if (typeof res.data === "object") {
@@ -867,6 +902,13 @@ export async function initializeBot() {
         }
       } catch (e: any) {
         apiResponseText = `Error fetching data: ${e.response?.status ? `Status ${e.response.status}` : e.message}`;
+      }
+
+      // 3. Delete the searching message
+      if (searchMsg && searchMsg.message_id && ctx.chat?.id) {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, searchMsg.message_id);
+        } catch (delErr) {}
       }
     }
 
@@ -882,7 +924,7 @@ export async function initializeBot() {
       }
     }
 
-    if (limitInlineButton) {
+    if (limitInlineButton && !isMainGroup) {
       inlineButtonsList.push([limitInlineButton]);
     }
 

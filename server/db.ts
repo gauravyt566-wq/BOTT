@@ -215,6 +215,13 @@ export const MirrorWallet = (mongoose.models.MirrorWallet || mongoose.model('Mir
 export const MirrorWithdrawalRequest = (mongoose.models.MirrorWithdrawalRequest || mongoose.model('MirrorWithdrawalRequest', MirrorWithdrawalRequestSchema, 'encore_mirror_withdrawal_requests')) as mongoose.Model<any>;
 export const Donation = (mongoose.models.Donation || mongoose.model('Donation', DonationSchema, 'encore_donations')) as mongoose.Model<any>;
 
+const MirrorOwnerPointsSchema = new mongoose.Schema({
+  ownerTelegramId: { type: String, required: true, unique: true },
+  integrationPointsUsed: { type: Number, default: 0 },
+  integrationPointsMonth: { type: String, default: "" }
+}, { timestamps: true });
+export const MirrorOwnerPoints = (mongoose.models.MirrorOwnerPoints || mongoose.model('MirrorOwnerPoints', MirrorOwnerPointsSchema, 'encore_mirror_owner_points')) as mongoose.Model<any>;
+
 let cachedAppUrl: string | null = null;
 export function getCachedAppUrl(): string | null {
   return cachedAppUrl;
