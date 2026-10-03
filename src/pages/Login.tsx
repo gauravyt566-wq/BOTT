@@ -32,7 +32,7 @@ export function Login() {
     try {
       const response = await axios.post('/api/admin/login', { key });
       if (response.data.success) {
-        localStorage.setItem('adminKey', 'CYBERTRACE_ADMIN_2025');
+        localStorage.setItem('adminKey', 'Gx7Qv9Lm2Zr8Kp4Nx6Ta1W');
         navigate('/');
       }
     } catch (err: any) {

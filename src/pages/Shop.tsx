@@ -381,7 +381,7 @@ export function Shop() {
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-gray-800/60 grid grid-cols-2 gap-4 text-center">
               <div className="bg-indigo-50/50 dark:bg-indigo-950/10 p-2.5 rounded-xl border border-indigo-100/40 dark:border-indigo-950/20">
                 <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-0.5">Coins Balance</p>
-                <p className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">{user.encCoins || 0} ENC</p>
+                <p className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">{user.encCoins || 0} NEX</p>
               </div>
               <div className="bg-amber-50/50 dark:bg-amber-950/10 p-2.5 rounded-xl border border-amber-100/40 dark:border-amber-950/20">
                 <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-0.5">Premium Advantage</p>

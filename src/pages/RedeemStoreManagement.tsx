@@ -100,7 +100,7 @@ export function RedeemStoreManagement() {
             <ShoppingBag className="w-7 h-7" /> Redeem Store Management
           </h2>
           <p className="text-indigo-100 text-sm mt-1">
-            Configure how group players can redeem their collected ENC coins for permanent command credits of specific triggers.
+            Configure how group players can redeem their collected NEX coins for permanent command credits of specific triggers.
           </p>
         </div>
         <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-lg text-xs font-medium border border-white/20">

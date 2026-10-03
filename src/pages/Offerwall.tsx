@@ -250,7 +250,7 @@ export function Offerwall() {
                 {user.username && <span className="text-xs text-white/85">@{user.username}</span>}
               </div>
               <div className="flex flex-col items-end mr-2 text-right">
-                <span className="text-xs text-yellow-200 font-bold uppercase tracking-wider">ENC Coins</span>
+                <span className="text-xs text-yellow-200 font-bold uppercase tracking-wider">NEX Coins</span>
                 <div className="flex items-center gap-1.5">
                   <Coins className="w-5 h-5 text-yellow-300" />
                   <span className="text-2xl font-black text-white drop-shadow-sm">{user.encCoins || 0}</span>
@@ -266,7 +266,7 @@ export function Offerwall() {
             className="relative z-10 backdrop-blur-sm bg-white/10 dark:bg-black/10 inline-block p-6 rounded-3xl border border-white/20 shadow-xl"
           >
               <Coins className="w-16 h-16 mx-auto mb-4 text-yellow-300 drop-shadow-md" />
-              <h1 className="text-3.5xl font-black mb-2 tracking-tight text-white drop-shadow-lg">Earn ENC Rewards</h1>
+              <h1 className="text-3.5xl font-black mb-2 tracking-tight text-white drop-shadow-lg">Earn NEX Rewards</h1>
               <p className="text-white/90 font-medium text-sm md:text-base drop-shadow">
                 Watch Monetag media videos to earn coins and exchange them on the go!
               </p>
@@ -315,7 +315,7 @@ export function Offerwall() {
                       ) : isAdReady ? (
                         <>
                           <PlaySquare className="w-5 h-5 fill-current opacity-80" />
-                          <span>Watch (+10 ENC)</span>
+                          <span>Watch (+10 NEX)</span>
                         </>
                       ) : (
                         'Booting Ad...'

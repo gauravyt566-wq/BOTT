@@ -48,6 +48,49 @@ export function invalidateSettingCache(key?: string) {
   }
 }
 
+// In-memory high-speed cache for command definitions (eliminates DB queries on repeated commands)
+const commandDefCache = new Map<string, { cmd: any; expiresAt: number }>();
+
+export function getCachedCommandDef(cmd: string): any {
+  const item = commandDefCache.get(cmd);
+  if (item && item.expiresAt > Date.now()) return item.cmd;
+  return null;
+}
+
+export function setCachedCommandDef(cmd: string, def: any, ttlMs: number = 60000) {
+  commandDefCache.set(cmd, { cmd: def, expiresAt: Date.now() + ttlMs });
+}
+
+export function invalidateCommandDefCache(cmd?: string) {
+  if (cmd) commandDefCache.delete(cmd);
+  else commandDefCache.clear();
+}
+
+// Fast in-memory cache for pending actions with speculative prefetch promises
+interface PendingCacheItem {
+  actionId: string;
+  command: string;
+  param: string;
+  telegramId: string;
+  messageId?: number;
+  cmdDef?: any;
+  userDoc?: any;
+  isGroup?: boolean;
+  prefetchPromise?: Promise<string>;
+  createdAt: number;
+}
+const pendingActionFastCache = new Map<string, PendingCacheItem>();
+
+// Clean up pending actions older than 20 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, item] of pendingActionFastCache.entries()) {
+    if (now - item.createdAt > 20 * 60 * 1000) {
+      pendingActionFastCache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // Helper to resolve active preview/prod domain dynamically
 export function getAppUrl(): string {
   const cached = getCachedAppUrl();
@@ -649,6 +692,32 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
   bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 }
 
+export function isMainGroupChat(chat: any, groupDoc?: any): boolean {
+  if (!chat) return false;
+  const isGroup = chat.type === "group" || chat.type === "supergroup";
+  if (!isGroup) return false;
+
+  const chatIdStr = String(chat.id || "").trim();
+  const chatUsername = String(chat.username || "").toLowerCase().replace(/^@/, "").trim();
+  const chatTitle = String(chat.title || "").toLowerCase();
+  const envMainGroupId = String(process.env.MAIN_GROUP_ID || process.env.MAIN_CHAT_ID || "").trim();
+
+  if (
+    chatIdStr === "-1003805540801" ||
+    chatIdStr === "1003805540801" ||
+    chatIdStr.includes("3805540801") ||
+    (envMainGroupId && (chatIdStr === envMainGroupId || chatIdStr.includes(envMainGroupId))) ||
+    chatUsername === "true_x_finder" ||
+    chatTitle.includes("truex") ||
+    chatTitle.includes("true_x") ||
+    chatTitle.includes("true x") ||
+    (groupDoc && (groupDoc.isUnlimited || String(groupDoc.title || "").toLowerCase().includes("truex") || String(groupDoc.telegramId || "").includes("3805540801")))
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function getBot() {
   return bot;
 }
@@ -711,6 +780,7 @@ export async function initializeBot() {
     shouldIncrementCredit: boolean = false,
     isGroupOpt?: boolean,
     cachedUserDoc?: any,
+    prefetchPromise?: Promise<string>,
   ) {
     let isGroup =
       isGroupOpt !== undefined
@@ -722,20 +792,43 @@ export async function initializeBot() {
     let groupDoc = null;
     let limitInlineButton: any = null;
 
-    const chatUsername = String(ctx.chat?.username || "").toLowerCase().replace(/^@/, "").trim();
-    const chatTitle = String(ctx.chat?.title || "").toLowerCase();
-    const envMainGroupId = process.env.MAIN_GROUP_ID || process.env.MAIN_CHAT_ID;
+    let isMainGroup = isMainGroupChat(ctx.chat);
 
-    let isMainGroup = Boolean(
-      isGroup && (
-        chatUsername === "true_x_finder" ||
-        chatTitle.includes("truex finder") ||
-        chatTitle.includes("true_x_finder") ||
-        chatTitle.includes("true x finder") ||
-        chatTitle.includes("truex") ||
-        (envMainGroupId && String(ctx.chat?.id) === String(envMainGroupId))
-      )
-    );
+    // 1. Kick off API call IMMEDIATELY in parallel so network latency overlaps with DB operations
+    let apiFetchPromise: Promise<string> | null = null;
+    let finalUrl = "";
+    if (cmdDef.isApi && cmdDef.apiUrl) {
+      finalUrl = cmdDef.apiUrl;
+
+      if (finalUrl.includes("{param}") && !param) {
+        await ctx
+          .reply(
+            `⚠️ *Missing Parameter*\n\nPlease provide the required parameter.\nUsage: \`${userCommand} <value>\``,
+            replyOptions,
+          )
+          .catch(() => {});
+        return;
+      }
+
+      if (param)
+        finalUrl = finalUrl.replace("{param}", encodeURIComponent(param));
+
+      if (prefetchPromise) {
+        apiFetchPromise = prefetchPromise;
+      } else {
+        apiFetchPromise = botHttpClient
+          .get(finalUrl)
+          .then((res) =>
+            typeof res.data === "object"
+              ? JSON.stringify(res.data, null, 2)
+              : String(res.data),
+          )
+          .catch(
+            (e) =>
+              `Error fetching data: ${e.response?.status ? `Status ${e.response.status}` : e.message}`,
+          );
+      }
+    }
 
     if (shouldIncrementCredit && ctx.from?.id) {
       let uDoc = cachedUserDoc || await BotUser.findOne({ telegramId: String(ctx.from.id) });
@@ -767,17 +860,21 @@ export async function initializeBot() {
 
     if (isGroup && ctx.chat?.id) {
       groupDoc = await BotGroup.findOne({ telegramId: String(ctx.chat.id) });
-      if (groupDoc) {
-        if (groupDoc.isUnlimited) {
-          isMainGroup = true;
+      if (!groupDoc) {
+        try {
+          groupDoc = await BotGroup.create({
+            telegramId: String(ctx.chat.id),
+            title: ctx.chat.title || "Group",
+            dailyLimit: 50,
+            dailyUsed: 0,
+          });
+        } catch {
+          groupDoc = await BotGroup.findOne({ telegramId: String(ctx.chat.id) });
         }
-        const groupDocTitle = String(groupDoc.title || "").toLowerCase();
-        if (
-          groupDocTitle.includes("truex finder") ||
-          groupDocTitle.includes("true_x_finder") ||
-          groupDocTitle.includes("true x finder") ||
-          groupDocTitle.includes("truex")
-        ) {
+      }
+
+      if (groupDoc) {
+        if (isMainGroupChat(ctx.chat, groupDoc)) {
           isMainGroup = true;
         }
 
@@ -786,17 +883,14 @@ export async function initializeBot() {
           .toISOString()
           .split("T")[0];
 
-        // Try mapping owner
+        // Resolve group owner asynchronously in background so it does NOT lag the command response
         if (!groupDoc.ownerId) {
-          try {
-            const chatAdmins = await ctx.telegram.getChatAdministrators(
-              ctx.chat.id,
-            );
-            const creator = chatAdmins.find(
-              (a: any) => a.status === "creator",
-            );
-            if (creator) groupDoc.ownerId = String(creator.user.id);
-          } catch (e) {} // silent fail if bot has no rights
+          ctx.telegram.getChatAdministrators(ctx.chat.id).then((chatAdmins: any[]) => {
+            const creator = chatAdmins.find((a: any) => a.status === "creator");
+            if (creator) {
+              BotGroup.updateOne({ telegramId: String(ctx.chat.id) }, { ownerId: String(creator.user.id) }).exec();
+            }
+          }).catch(() => {});
         }
 
         let limitCheckedByOwner = false;
@@ -888,7 +982,7 @@ export async function initializeBot() {
           return; // Block
         }
 
-        // Deduct/count group credits (DO NOT remove or change counting logic)
+        // Deduct/count group credits
         if (limitCheckedByOwner && ownerDocToSave) {
           ownerDocToSave.groupCreditsUsed = ownerUsed + 1;
           ownerDocToSave
@@ -906,9 +1000,10 @@ export async function initializeBot() {
           }
         } else {
           groupDoc.dailyUsed += 1;
+          // In ALL non-main groups, always say 'owner group credits used!'
           if (!isMainGroup) {
             limitInlineButton = {
-              text: `${groupDoc.dailyUsed}/${groupDoc.dailyLimit} group searches used!`,
+              text: `${groupDoc.dailyUsed}/${groupDoc.dailyLimit} owner group credits used!`,
               callback_data: "limit_info",
               style: "danger",
             };
@@ -919,44 +1014,48 @@ export async function initializeBot() {
     }
 
     let apiResponseText = "";
-    if (cmdDef.isApi && cmdDef.apiUrl) {
-      let finalUrl = cmdDef.apiUrl;
+    if (apiFetchPromise) {
+      let searchMsgPromise: Promise<any> | null = null;
+      let prefetchDone = false;
 
-      if (finalUrl.includes("{param}") && !param) {
-        await ctx
-          .reply(
-            `⚠️ *Missing Parameter*\n\nPlease provide the required parameter.\nUsage: \`${userCommand} <value>\``,
-            replyOptions,
-          )
-          .catch(() => {});
-        return;
-      }
-
-      if (param)
-        finalUrl = finalUrl.replace("{param}", encodeURIComponent(param));
-
-      // 1. Send the searching message immediately
-      const searchMsgPromise = ctx.reply("🔍 Searching... Please wait...", replyOptions)
-        .catch(() => ctx.reply("🔍 Searching... Please wait...").catch(() => null));
-
-      // 2. Concurrently process the API call using keepAlive HTTP client
+      // Fast path: if apiFetchPromise already finished, grab result instantly
       try {
-        const res = await botHttpClient.get(finalUrl);
-        if (typeof res.data === "object") {
-          apiResponseText = JSON.stringify(res.data, null, 2);
-        } else {
-          apiResponseText = String(res.data);
+        const quickRes = await Promise.race([
+          apiFetchPromise,
+          new Promise<null>((r) => setTimeout(() => r(null), 40)),
+        ]);
+        if (quickRes !== null && quickRes !== undefined) {
+          apiResponseText = quickRes;
+          prefetchDone = true;
         }
-      } catch (e: any) {
-        apiResponseText = `Error fetching data: ${e.response?.status ? `Status ${e.response.status}` : e.message}`;
-      }
+      } catch {}
 
-      // 3. Delete the searching message as soon as API response is available
-      searchMsgPromise.then((searchMsg: any) => {
-        if (searchMsg && searchMsg.message_id && ctx.chat?.id) {
-          ctx.telegram.deleteMessage(ctx.chat.id, searchMsg.message_id).catch(() => {});
+      if (!prefetchDone) {
+        // Send searching message immediately
+        searchMsgPromise = ctx
+          .reply("🔍 Searching... Please wait...", replyOptions)
+          .catch(() =>
+            ctx.reply("🔍 Searching... Please wait...").catch(() => null),
+          );
+
+        try {
+          apiResponseText = await apiFetchPromise;
+        } catch (e: any) {
+          apiResponseText = `Error fetching data: ${e.response?.status ? `Status ${e.response.status}` : e.message}`;
         }
-      }).catch(() => {});
+
+        if (searchMsgPromise) {
+          searchMsgPromise
+            .then((searchMsg: any) => {
+              if (searchMsg && searchMsg.message_id && ctx.chat?.id) {
+                ctx.telegram
+                  .deleteMessage(ctx.chat.id, searchMsg.message_id)
+                  .catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }
+      }
     }
 
     let finalText = cmdDef.decoratedMessage || "{{api.response}}";
@@ -1178,99 +1277,102 @@ export async function initializeBot() {
 
   bot.action(/^check_sub:(.+)$/, async (ctx) => {
     const actionId = ctx.match[1];
-    console.log(`[check_sub] Action triggered with ID: ${actionId}`);
 
     try {
-      const pending = await PendingAction.findOne({ actionId });
+      // 1. Fast path: check in-memory cache first (0ms)
+      let pending: any = pendingActionFastCache.get(actionId);
       if (!pending) {
-        console.log(`[check_sub] Pending action not found for ID: ${actionId}`);
-        return ctx.answerCbQuery(
-          "Session expired. Please run the command again!",
-          { show_alert: true },
-        );
+        const dbPending = await PendingAction.findOne({ actionId });
+        if (!dbPending) {
+          return ctx.answerCbQuery(
+            "Session expired. Please run the command again!",
+            { show_alert: true },
+          ).catch(() => {});
+        }
+        pending = {
+          actionId: dbPending.actionId,
+          command: dbPending.command,
+          param: dbPending.param || "",
+          telegramId: dbPending.telegramId,
+          messageId: dbPending.messageId,
+          createdAt: Date.now()
+        };
       }
 
-      // Authorization guard: Make sure the guy clicking is the guy who ran it!
+      // Authorization guard: Make sure the user clicking is the user who triggered it
       if (String(ctx.from?.id) !== pending.telegramId) {
-        console.log(
-          `[check_sub] Auth guard failed: ${ctx.from?.id} vs ${pending.telegramId}`,
-        );
         return ctx.answerCbQuery(
           "⚠️ This button is not for you! Please run your own command.",
           { show_alert: true },
-        );
+        ).catch(() => {});
       }
 
       let forceChannelsSetting = await getCachedSetting("forceChannels", 30000);
       let requiredChannels = forceChannelsSetting || [];
-      console.log(`[check_sub] Required channels:`, requiredChannels);
 
       let notJoined: any[] = [];
       if (requiredChannels.length > 0 && ctx.from) {
         const checks = requiredChannels.map(async (channel: any) => {
           const channelId = typeof channel === "string" ? channel : channel.id;
+          const cleanId = String(channelId).trim();
+          const targetId = cleanId.startsWith('@') ? cleanId : Number(cleanId);
           try {
-            const member = await ctx.telegram.getChatMember(
-              channelId,
-              ctx.from.id,
-            );
-            if (member.status === "left" || member.status === "kicked") {
+            const member: any = await Promise.race([
+              ctx.telegram.getChatMember(targetId, ctx.from.id),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000)),
+            ]);
+            if (member && (member.status === "left" || member.status === "kicked")) {
               return channel;
             }
+            return null;
           } catch (e) {
-            return channel;
+            // Never block user if Telegram API times out or channel check fails
+            return null;
           }
-          return null;
         });
         const results = await Promise.all(checks);
         notJoined = results.filter(Boolean);
       }
 
       if (notJoined.length > 0) {
-        console.log(
-          `[check_sub] User still not joined. Channels missed:`,
-          notJoined,
-        );
-        return ctx.answerCbQuery("You have NOT joined all required channels!", {
+        return ctx.answerCbQuery("⚠️ You have NOT joined all required channels! Please join them and tap Show Result again.", {
           show_alert: true,
-        });
+        }).catch(() => {});
       }
 
-      // User has joined! Clear the forced message
-      console.log(`[check_sub] All channels joined. Executing...`);
-      await ctx.answerCbQuery("Verification successful! Processing...");
+      // User has joined! Immediately give positive feedback
+      await ctx.answerCbQuery("⚡️ Verified! Fetching result...").catch(() => {});
 
-      try {
-        await ctx.deleteMessage();
-      } catch (e) {
-        console.log(
-          `[check_sub] Could not delete original message, continuing anyway.`,
-          e,
-        );
-      }
+      // Clear the forced message asynchronously in background
+      ctx.deleteMessage().catch(() => {});
 
-      const cmdDef = await Command.findOne({ command: pending.command });
+      // Instant command definition resolution
+      let cmdDef = pending.cmdDef || getCachedCommandDef(pending.command);
       if (!cmdDef) {
-        console.log(
-          `[check_sub] Command definition not found: ${pending.command}`,
-        );
+        cmdDef = await Command.findOne({ command: pending.command });
+        if (cmdDef) setCachedCommandDef(pending.command, cmdDef);
+      }
+
+      if (!cmdDef) {
+        console.log(`[check_sub] Command definition not found: ${pending.command}`);
         return;
       }
-      // Use reply_to_message_id for older telegraf, and reply_parameters for new APIs. We include both to be safe.
+
       const replyOptions = {
-        parse_mode: "Markdown",
-        reply_to_message_id: pending.messageId, // standard telegraf way
+        parse_mode: "Markdown" as const,
+        reply_to_message_id: pending.messageId,
         reply_parameters: pending.messageId
           ? { message_id: pending.messageId }
           : undefined,
       };
 
-      const userDoc = await BotUser.findOne({
+      const userDoc = pending.userDoc || await BotUser.findOne({
         telegramId: String(ctx.from?.id),
       });
       const shouldIncrementCredit =
         cmdDef.isCreditBased && (!userDoc || !userDoc.isAdmin);
 
+      // Execute search immediately with the speculative prefetchPromise
       await executeApiCommand(
         ctx,
         pending.command,
@@ -1278,10 +1380,10 @@ export async function initializeBot() {
         cmdDef,
         replyOptions,
         shouldIncrementCredit,
-        undefined,
+        pending.isGroup,
         userDoc,
+        pending.prefetchPromise,
       );
-      console.log(`[check_sub] API Command executed via callback.`);
     } catch (err) {
       console.error("[check_sub] Fatal Error:", err);
       await ctx
@@ -1437,7 +1539,7 @@ export async function initializeBot() {
           : "Unlimited";
         profileText += `⏳ *Premium Expiry:* \`${expiryStr}\`\n`;
       }
-      profileText += `💰 *ENC Coins:* ${userDoc.encCoins || 0}\n\n`;
+      profileText += `💰 *NEX Coins:* ${userDoc.encCoins || 0}\n\n`;
 
       profileText += `👥 *Personal Group Credits (Daily)*\n`;
       profileText += `• ${grpStatus}\n\n`;
@@ -1469,7 +1571,7 @@ export async function initializeBot() {
       const appUrl = getAppUrl();
 
       const earnButton = {
-        text: "💸 Earn ENC",
+        text: "💸 Earn NEX",
         url: `https://t.me/${ctx.botInfo?.username || "bot"}?start=earn`,
         style: "success",
       };
@@ -2275,13 +2377,15 @@ export async function initializeBot() {
       }
 
       try {
-        console.log(`[Bot Text Handler] Database Lookup: Fetching Command definition for command: "${userCommand}"`);
-        let cmdDef;
-        try {
-          cmdDef = await Command.findOne({ command: userCommand });
-        } catch (dbErr: any) {
-          console.error(`[Bot DB Error] Database lookup failed for Command: "${userCommand}":`, dbErr);
-          throw dbErr;
+        let cmdDef = getCachedCommandDef(userCommand);
+        if (!cmdDef) {
+          try {
+            cmdDef = await Command.findOne({ command: userCommand });
+            if (cmdDef) setCachedCommandDef(userCommand, cmdDef);
+          } catch (dbErr: any) {
+            console.error(`[Bot DB Error] Database lookup failed for Command: "${userCommand}":`, dbErr);
+            throw dbErr;
+          }
         }
 
         if (!cmdDef) {
@@ -2535,18 +2639,20 @@ export async function initializeBot() {
         if (requiredChannels.length > 0 && ctx.from) {
           const checks = requiredChannels.map(async (channel: any) => {
             const channelId = typeof channel === "string" ? channel : channel.id;
+            const cleanId = String(channelId).trim();
+            const targetId = cleanId.startsWith('@') ? cleanId : Number(cleanId);
             try {
-              const member = await ctx.telegram.getChatMember(
-                channelId,
-                ctx.from.id,
-              );
-              if (member.status === "left" || member.status === "kicked") {
+              const member: any = await Promise.race([
+                ctx.telegram.getChatMember(targetId, ctx.from.id),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000)),
+              ]);
+              if (member && (member.status === "left" || member.status === "kicked")) {
                 return channel;
               }
+              return null;
             } catch (e) {
-              return channel;
+              return null;
             }
-            return null;
           });
           const results = await Promise.all(checks);
           notJoined = results.filter(Boolean);
@@ -2562,15 +2668,39 @@ export async function initializeBot() {
             return { text: `Join Channel ${idx + 1}`, url, style: "danger" };
           });
 
-          // Save execution context to be executed on click
+          // Pre-fetch search API in background so result is ready immediately when user clicks "Show Result"!
+          let prefetchPromise: Promise<string> | undefined;
+          if (cmdDef.isApi && cmdDef.apiUrl) {
+            let finalUrl = cmdDef.apiUrl;
+            if (param) finalUrl = finalUrl.replace("{param}", encodeURIComponent(param));
+            prefetchPromise = botHttpClient.get(finalUrl)
+              .then(res => typeof res.data === "object" ? JSON.stringify(res.data, null, 2) : String(res.data))
+              .catch(e => `Error fetching data: ${e.response?.status ? `Status ${e.response.status}` : e.message}`);
+          }
+
+          // Save execution context to fast in-memory cache
           const actionId = Math.random().toString(36).substring(2, 10);
-          await PendingAction.create({
+          pendingActionFastCache.set(actionId, {
             actionId,
             command: userCommand,
             param,
             telegramId: String(ctx.from?.id),
             messageId: ctx.message.message_id,
+            cmdDef,
+            userDoc,
+            isGroup,
+            prefetchPromise,
+            createdAt: Date.now()
           });
+
+          // Async DB record without blocking reply
+          PendingAction.create({
+            actionId,
+            command: userCommand,
+            param,
+            telegramId: String(ctx.from?.id),
+            messageId: ctx.message.message_id,
+          }).catch(() => {});
 
           await ctx.reply(
             `⚠️ *Subscription Required* for ${userMention}\n\nYou must join our channels to use this bot!`,

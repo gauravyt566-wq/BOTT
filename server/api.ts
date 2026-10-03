@@ -964,8 +964,9 @@ apiRouter.post('/api/admin/login', (req, res) => {
     });
   }
 
-  // Check correct key (master key 'CYBERTRACE_ADMIN_2025')
-  if (key === 'CYBERTRACE_ADMIN_2025') {
+  // Check correct key (master key 'Gx7Qv9Lm2Zr8Kp4Nx6Ta1W')
+  const validAdminKey = process.env.ADMIN_KEY || 'Gx7Qv9Lm2Zr8Kp4Nx6Ta1W';
+  if (key === validAdminKey || key === 'Gx7Qv9Lm2Zr8Kp4Nx6Ta1W') {
     // Reset attempts on successful login
     status.attempts = 0;
     status.blockedUntil = 0;
@@ -2118,7 +2119,7 @@ apiRouter.get('/api/adgem-callback', async (req, res) => {
     user.encCoins = (user.encCoins || 0) + coinsToAdd;
     await user.save();
 
-    console.log(`[Adgem Postback] Added ${coinsToAdd} ENC to ${tgId} (txn: ${transaction_id})`);
+    console.log(`[Adgem Postback] Added ${coinsToAdd} NEX to ${tgId} (txn: ${transaction_id})`);
     
     // Adgem requires a positive integer or "1" to denote success
     return res.status(200).send('1');
@@ -2173,7 +2174,7 @@ apiRouter.get('/api/timewall-callback', async (req, res) => {
     // Don't let users go negative via chargebacks if you want, but typical behavior is to deduct.
     await user.save();
 
-    console.log(`[TimeWall Postback] Processed ${coinsToAdd} ENC for ${tgId} (txn: ${transactionId}, revenue: ${revenue})`);
+    console.log(`[TimeWall Postback] Processed ${coinsToAdd} NEX for ${tgId} (txn: ${transactionId}, revenue: ${revenue})`);
     
     // TimeWall expects an HTTP 200 OK success status
     return res.status(200).send('OK');

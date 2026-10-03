@@ -104,7 +104,7 @@ export function Redeem() {
                         </div>
                         <div>
                             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Redeem Command Credits</h1>
-                            <p className="text-xs text-slate-400 dark:text-slate-500">Convert your ENC coins into lifetime credits</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">Convert your NEX coins into lifetime credits</p>
                         </div>
                     </div>
 
@@ -114,7 +114,7 @@ export function Redeem() {
                                 <Coins className="w-5 h-5 text-amber-500" />
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Your Coin Balance</span>
                             </div>
-                            <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{user.encCoins || 0} ENC</span>
+                            <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{user.encCoins || 0} NEX</span>
                         </div>
                     )}
 
@@ -177,7 +177,7 @@ export function Redeem() {
                                 </div>
                                 <div className="flex justify-between items-center text-slate-700 dark:text-slate-300">
                                     <span>Total Cost:</span>
-                                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{totalCost} ENC Coins</span>
+                                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{totalCost} NEX Coins</span>
                                 </div>
                                 {amount < activeItem.minRedeemAmount && (
                                     <p className="text-xs text-red-500 flex items-center gap-1 mt-1">

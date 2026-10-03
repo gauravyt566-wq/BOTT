@@ -304,17 +304,23 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
 
       // 2. Custom channels
       if (doc.forceChannels && doc.forceChannels.length > 0) {
-        for (const channel of doc.forceChannels) {
+        const customChecks = doc.forceChannels.map(async (channel: any) => {
           const channelId = typeof channel === "string" ? channel : (channel.username || channel.id);
           try {
-            const member = await ctx.telegram.getChatMember(channelId, ctx.from.id);
-            if (member.status === "left" || member.status === "kicked") {
-              missedChannels.push(channel);
+            const member: any = await Promise.race([
+              ctx.telegram.getChatMember(channelId, ctx.from.id),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000))
+            ]);
+            if (member && (member.status === "left" || member.status === "kicked")) {
+              return channel;
             }
+            return null;
           } catch (e) {
-            missedChannels.push(channel);
+            return null;
           }
-        }
+        });
+        const results = await Promise.all(customChecks);
+        missedChannels.push(...results.filter(Boolean));
       }
 
       if (missedChannels.length > 0) {
@@ -405,7 +411,7 @@ export async function startMirrorBot(mirrorBotDoc: any, skipSetupWebhook = false
     let profileText = `👤 *Your Profile*\n\n` +
       `🔑 *Telegram ID:* \`${userId}\`\n` +
       `👑 *Role:* ${userDoc.isAdmin ? "Admin" : userDoc.isPremium ? "Premium member" : "Free User"}\n` +
-      `💰 *ENC Coins:* ${userDoc.encCoins || 0}\n\n` +
+      `💰 *NEX Coins:* ${userDoc.encCoins || 0}\n\n` +
       `👥 *Daily Group Credits (This Bot)*\n` +
       `• Limit: ${doc.defaultGroupCredits || 50} searches/day\n\n`;
 

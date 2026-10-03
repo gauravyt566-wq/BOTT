@@ -205,7 +205,7 @@ export function Settings() {
           <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
             <div>
               <span className="text-sm font-medium text-gray-850">Monetag Ad Rewards</span>
-              <p className="text-xs text-gray-400 mt-0.5">Toggle Monetag ad networks. Users get 10 ENC coins per reward ad video completed.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Toggle Monetag ad networks. Users get 10 NEX coins per reward ad video completed.</p>
             </div>
             <button
               type="button"
