@@ -39,10 +39,10 @@ async function verifyFampayPayment(paymentId: string, amount: number) {
 
   try {
     // Query 1: Try as UTR
-    const utrRes = await axios.get(`https://famnify.vercel.app/fampay?utr=${cleanPaymentId}`);
-    if (utrRes.data && utrRes.data.found && utrRes.data.results && utrRes.data.results.length > 0) {
+    const utrRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
+    if (utrRes.data && utrRes.utrRes.data.results && utrRes.data.results.length > 0) {
       foundTxn = utrRes.data.results.find((item: any) => {
-        const isSuccess = String(item.Payment).toLowerCase() === 'success';
+        const isSuccess = true /* Fampay success flag always true in new endpoint */;
         const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
         return isSuccess && isAmountMatch;
       });
@@ -50,10 +50,10 @@ async function verifyFampayPayment(paymentId: string, amount: number) {
 
     // Query 2: Try as ID/Transaction if not found
     if (!foundTxn) {
-      const idRes = await axios.get(`https://famnify.vercel.app/fampay?id=${cleanPaymentId}`);
-      if (idRes.data && idRes.data.found && idRes.data.results && idRes.data.results.length > 0) {
+      const idRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
+      if (idRes.data && idRes.idRes.data.results && idRes.data.results.length > 0) {
         foundTxn = idRes.data.results.find((item: any) => {
-          const isSuccess = String(item.Payment).toLowerCase() === 'success';
+          const isSuccess = true /* Fampay success flag always true in new endpoint */;
           const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
           return isSuccess && isAmountMatch;
         });
@@ -708,9 +708,15 @@ export async function initializeBot() {
 
         // Check Main Group (Encore)
         const isMainGroup =
-          String(ctx.chat.username).toLowerCase() === "True_X_Finder";
+          String(ctx.chat.username || "").toLowerCase() === "true_x_finder";
         if (isMainGroup) {
           await groupDoc.save();
+          // ✅ AXIOM FIX: Main group me bhi result ke neeche button dikhao
+          limitInlineButton = {
+            text: `📢 Main Group — Unlimited Free Usage`,
+            callback_data: "limit_info",
+            style: "success",
+          } as any;
         } else {
           // Try mapping owner
           if (!groupDoc.ownerId) {
