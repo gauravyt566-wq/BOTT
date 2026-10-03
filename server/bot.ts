@@ -1,5 +1,7 @@
 import { Telegraf, Markup } from "telegraf";
 import axios from "axios";
+import http from "http";
+import https from "https";
 import {
   Command,
   BotUser,
@@ -11,6 +13,40 @@ import {
   Coupon,
   getCachedAppUrl,
 } from "./db.js";
+
+// Reusable HTTP/HTTPS agents with keepAlive to eliminate connection overhead and speed up API lookups
+const botHttpClient = axios.create({
+  httpAgent: new http.Agent({ keepAlive: true, maxSockets: 100 }),
+  httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 100 }),
+  timeout: 15000,
+});
+
+// Fast in-memory cache for frequently-read global settings to eliminate redundant DB queries on every command
+const settingsCache = new Map<string, { value: any; expiresAt: number }>();
+
+export async function getCachedSetting(key: string, ttlMs: number = 30000): Promise<any> {
+  const now = Date.now();
+  const cached = settingsCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+  try {
+    const setting = await Setting.findOne({ key });
+    const val = setting ? setting.value : null;
+    settingsCache.set(key, { value: val, expiresAt: now + ttlMs });
+    return val;
+  } catch {
+    return cached ? cached.value : null;
+  }
+}
+
+export function invalidateSettingCache(key?: string) {
+  if (key) {
+    settingsCache.delete(key);
+  } else {
+    settingsCache.clear();
+  }
+}
 
 // Helper to resolve active preview/prod domain dynamically
 export function getAppUrl(): string {
@@ -674,25 +710,35 @@ export async function initializeBot() {
     replyOptions: any,
     shouldIncrementCredit: boolean = false,
     isGroupOpt?: boolean,
+    cachedUserDoc?: any,
   ) {
     let isGroup =
       isGroupOpt !== undefined
         ? isGroupOpt
-        : ctx.chat &&
-          (ctx.chat.type === "group" || ctx.chat.type === "supergroup");
+        : Boolean(
+            ctx.chat &&
+            (ctx.chat.type === "group" || ctx.chat.type === "supergroup")
+          );
     let groupDoc = null;
     let limitInlineButton: any = null;
 
-    const chatUsername = String(ctx.chat?.username || "").toLowerCase();
+    const chatUsername = String(ctx.chat?.username || "").toLowerCase().replace(/^@/, "").trim();
     const chatTitle = String(ctx.chat?.title || "").toLowerCase();
-    let isMainGroup =
-      Boolean(isGroup &&
-      (chatUsername === "true_x_finder" ||
+    const envMainGroupId = process.env.MAIN_GROUP_ID || process.env.MAIN_CHAT_ID;
+
+    let isMainGroup = Boolean(
+      isGroup && (
+        chatUsername === "true_x_finder" ||
         chatTitle.includes("truex finder") ||
-        chatTitle.includes("true_x_finder")));
+        chatTitle.includes("true_x_finder") ||
+        chatTitle.includes("true x finder") ||
+        chatTitle.includes("truex") ||
+        (envMainGroupId && String(ctx.chat?.id) === String(envMainGroupId))
+      )
+    );
 
     if (shouldIncrementCredit && ctx.from?.id) {
-      let uDoc = await BotUser.findOne({ telegramId: String(ctx.from.id) });
+      let uDoc = cachedUserDoc || await BotUser.findOne({ telegramId: String(ctx.from.id) });
       if (uDoc) {
         const today = new Date().toISOString().split("T")[0];
         let usageIndex = uDoc.commandUsage?.findIndex(
@@ -715,9 +761,7 @@ export async function initializeBot() {
         }
         // Inform Mongoose that array has changed
         uDoc.markModified("commandUsage");
-        await uDoc
-          .save()
-          .catch((e: any) => console.log("Err saving usage:", e.message));
+        uDoc.save().catch((e: any) => console.log("Err saving usage:", e.message));
       }
     }
 
@@ -727,146 +771,154 @@ export async function initializeBot() {
         if (groupDoc.isUnlimited) {
           isMainGroup = true;
         }
+        const groupDocTitle = String(groupDoc.title || "").toLowerCase();
+        if (
+          groupDocTitle.includes("truex finder") ||
+          groupDocTitle.includes("true_x_finder") ||
+          groupDocTitle.includes("true x finder") ||
+          groupDocTitle.includes("truex")
+        ) {
+          isMainGroup = true;
+        }
+
         const istOffsetMs = 5.5 * 60 * 60 * 1000;
         const today = new Date(Date.now() + istOffsetMs)
           .toISOString()
           .split("T")[0];
 
-        // Check Main Group (TrueX Finder)
-        if (isMainGroup) {
-          await groupDoc.save();
-        } else {
-          // Try mapping owner
-          if (!groupDoc.ownerId) {
-            try {
-              const chatAdmins = await ctx.telegram.getChatAdministrators(
-                ctx.chat.id,
-              );
-              const creator = chatAdmins.find(
-                (a: any) => a.status === "creator",
-              );
-              if (creator) groupDoc.ownerId = String(creator.user.id);
-            } catch (e) {} // silent fail if bot has no rights
+        // Try mapping owner
+        if (!groupDoc.ownerId) {
+          try {
+            const chatAdmins = await ctx.telegram.getChatAdministrators(
+              ctx.chat.id,
+            );
+            const creator = chatAdmins.find(
+              (a: any) => a.status === "creator",
+            );
+            if (creator) groupDoc.ownerId = String(creator.user.id);
+          } catch (e) {} // silent fail if bot has no rights
+        }
+
+        let limitCheckedByOwner = false;
+        let ownerUsed = 0;
+        let ownerLimit = 50;
+        let isOwnerUnlimited = false;
+        let ownerDocToSave: any = null;
+
+        if (groupDoc.ownerId) {
+          // get global settings (cached)
+          const defaultGrpCredVal = await getCachedSetting("defaultGroupCredits");
+          let defaultCredits =
+            defaultGrpCredVal != null
+              ? Number(defaultGrpCredVal)
+              : 50;
+          ownerLimit = defaultCredits;
+
+          let ownerDoc = await BotUser.findOne({
+            telegramId: groupDoc.ownerId,
+          });
+          if (!ownerDoc) {
+            ownerDoc = await BotUser.create({ telegramId: groupDoc.ownerId });
           }
 
-          let limitCheckedByOwner = false;
-          let ownerUsed = 0;
-          let ownerLimit = 50;
-          let isOwnerUnlimited = false;
-          let ownerDocToSave: any = null;
+          if (ownerDoc) {
+            limitCheckedByOwner = true;
+            ownerDocToSave = ownerDoc;
+            isOwnerUnlimited = ownerDoc.isGroupUnlimited || false;
 
-          if (groupDoc.ownerId) {
-            // get global settings
-            const defaultGrpCredSetting = await Setting.findOne({
-              key: "defaultGroupCredits",
-            });
-            let defaultCredits =
-              defaultGrpCredSetting && defaultGrpCredSetting.value != null
-                ? Number(defaultGrpCredSetting.value)
-                : 50;
-            ownerLimit = defaultCredits;
-
-            let ownerDoc = await BotUser.findOne({
-              telegramId: groupDoc.ownerId,
-            });
-            if (!ownerDoc) {
-              ownerDoc = await BotUser.create({ telegramId: groupDoc.ownerId });
+            if (
+              ownerDoc.groupCreditsLimit !== undefined &&
+              ownerDoc.groupCreditsLimit !== null
+            ) {
+              ownerLimit = ownerDoc.groupCreditsLimit;
             }
 
-            if (ownerDoc) {
-              limitCheckedByOwner = true;
-              ownerDocToSave = ownerDoc;
-              isOwnerUnlimited = ownerDoc.isGroupUnlimited || false;
-
-              if (
-                ownerDoc.groupCreditsLimit !== undefined &&
-                ownerDoc.groupCreditsLimit !== null
-              ) {
-                ownerLimit = ownerDoc.groupCreditsLimit;
-              }
-
-              if (ownerDoc.groupCreditsLastReset !== today) {
-                ownerDoc.groupCreditsUsed = 0;
-                ownerDoc.groupCreditsLastReset = today;
-              }
-              ownerUsed = ownerDoc.groupCreditsUsed || 0;
+            if (ownerDoc.groupCreditsLastReset !== today) {
+              ownerDoc.groupCreditsUsed = 0;
+              ownerDoc.groupCreditsLastReset = today;
             }
+            ownerUsed = ownerDoc.groupCreditsUsed || 0;
           }
+        }
 
-          let limitReached = false;
-          let currentUsed = 0;
-          let currentLimit = ownerLimit;
+        let limitReached = false;
+        let currentUsed = 0;
+        let currentLimit = ownerLimit;
 
-          if (!groupDoc.isUnlimited && !isOwnerUnlimited) {
-            if (limitCheckedByOwner) {
-              currentUsed = ownerUsed;
-              currentLimit = ownerLimit;
-              if (ownerUsed >= ownerLimit) limitReached = true;
-            } else {
-              // Fallback legacy behavior
-              if (groupDoc.lastResetDate !== today) {
-                groupDoc.dailyUsed = 0;
-                groupDoc.lastResetDate = today;
-              }
-              currentUsed = groupDoc.dailyUsed;
-              currentLimit = groupDoc.dailyLimit;
-              if (groupDoc.dailyUsed >= groupDoc.dailyLimit)
-                limitReached = true;
+        if (!groupDoc.isUnlimited && !isOwnerUnlimited) {
+          if (limitCheckedByOwner) {
+            currentUsed = ownerUsed;
+            currentLimit = ownerLimit;
+            if (ownerUsed >= ownerLimit) limitReached = true;
+          } else {
+            // Fallback legacy behavior
+            if (groupDoc.lastResetDate !== today) {
+              groupDoc.dailyUsed = 0;
+              groupDoc.lastResetDate = today;
             }
+            currentUsed = groupDoc.dailyUsed;
+            currentLimit = groupDoc.dailyLimit;
+            if (groupDoc.dailyUsed >= groupDoc.dailyLimit)
+              limitReached = true;
           }
+        }
 
-          if (limitReached) {
-            await ctx
-              .reply(
-                `⚠️ *Daily Group Limit Reached*\n\nThis group (or its owner) has used all ${currentLimit} daily group searches. Please wait for tomorrow or contact an admin to increase the limit!`,
-                {
-                  parse_mode: "Markdown",
-                  ...replyOptions,
-                  reply_markup: {
-                    inline_keyboard: [
-                      [
-                        {
-                          text: "Contact Admin",
-                          url: "https://t.me/ZephrexXx",
-                          style: "success",
-                        } as any,
-                      ],
+        if (limitReached) {
+          await ctx
+            .reply(
+              `⚠️ *Daily Group Limit Reached*\n\nThis group (or its owner) has used all ${currentLimit} daily group searches. Please wait for tomorrow or contact an admin to increase the limit!`,
+              {
+                parse_mode: "Markdown",
+                ...replyOptions,
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      {
+                        text: "Contact Admin",
+                        url: "https://t.me/ZephrexXx",
+                        style: "success",
+                      } as any,
                     ],
-                  },
+                  ],
                 },
-              )
-              .catch(() => {});
-            await groupDoc.save();
-            return; // Block
-          }
+              },
+            )
+            .catch(() => {});
+          groupDoc.save().catch(() => {});
+          return; // Block
+        }
 
-          if (limitCheckedByOwner && ownerDocToSave) {
-            ownerDocToSave.groupCreditsUsed = ownerUsed + 1;
-            await ownerDocToSave
-              .save()
-              .catch((e: any) =>
-                console.log("Err saving owner doc:", e.message),
-              );
+        // Deduct/count group credits (DO NOT remove or change counting logic)
+        if (limitCheckedByOwner && ownerDocToSave) {
+          ownerDocToSave.groupCreditsUsed = ownerUsed + 1;
+          ownerDocToSave
+            .save()
+            .catch((e: any) =>
+              console.log("Err saving owner doc:", e.message),
+            );
+          // Show owner group credits button ONLY if NOT in MAIN GROUP
+          if (!isMainGroup) {
             limitInlineButton = {
               text: `${ownerUsed + 1}/${ownerLimit} owner group credits used!`,
               callback_data: "limit_info",
               style: "danger",
             };
-          } else {
-            groupDoc.dailyUsed += 1;
+          }
+        } else {
+          groupDoc.dailyUsed += 1;
+          if (!isMainGroup) {
             limitInlineButton = {
               text: `${groupDoc.dailyUsed}/${groupDoc.dailyLimit} group searches used!`,
               callback_data: "limit_info",
               style: "danger",
             };
           }
-          await groupDoc.save();
         }
+        groupDoc.save().catch(() => {});
       }
     }
 
     let apiResponseText = "";
-    let searchMsg: any = null;
     if (cmdDef.isApi && cmdDef.apiUrl) {
       let finalUrl = cmdDef.apiUrl;
 
@@ -883,18 +935,13 @@ export async function initializeBot() {
       if (param)
         finalUrl = finalUrl.replace("{param}", encodeURIComponent(param));
 
-      // 1. First send a temporary message: "🔍 Searching... Please wait..."
-      try {
-        searchMsg = await ctx.reply("🔍 Searching... Please wait...", replyOptions);
-      } catch (smErr) {
-        try {
-          searchMsg = await ctx.reply("🔍 Searching... Please wait...");
-        } catch (smErr2) {}
-      }
+      // 1. Send the searching message immediately
+      const searchMsgPromise = ctx.reply("🔍 Searching... Please wait...", replyOptions)
+        .catch(() => ctx.reply("🔍 Searching... Please wait...").catch(() => null));
 
-      // 2. Process the API call
+      // 2. Concurrently process the API call using keepAlive HTTP client
       try {
-        const res = await axios.get(finalUrl, { timeout: 15000 });
+        const res = await botHttpClient.get(finalUrl);
         if (typeof res.data === "object") {
           apiResponseText = JSON.stringify(res.data, null, 2);
         } else {
@@ -904,12 +951,12 @@ export async function initializeBot() {
         apiResponseText = `Error fetching data: ${e.response?.status ? `Status ${e.response.status}` : e.message}`;
       }
 
-      // 3. Delete the searching message
-      if (searchMsg && searchMsg.message_id && ctx.chat?.id) {
-        try {
-          await ctx.telegram.deleteMessage(ctx.chat.id, searchMsg.message_id);
-        } catch (delErr) {}
-      }
+      // 3. Delete the searching message as soon as API response is available
+      searchMsgPromise.then((searchMsg: any) => {
+        if (searchMsg && searchMsg.message_id && ctx.chat?.id) {
+          ctx.telegram.deleteMessage(ctx.chat.id, searchMsg.message_id).catch(() => {});
+        }
+      }).catch(() => {});
     }
 
     let finalText = cmdDef.decoratedMessage || "{{api.response}}";
@@ -1154,15 +1201,13 @@ export async function initializeBot() {
         );
       }
 
-      let forceChannelsSetting = await Setting.findOne({
-        key: "forceChannels",
-      });
-      let requiredChannels = forceChannelsSetting?.value || [];
+      let forceChannelsSetting = await getCachedSetting("forceChannels", 30000);
+      let requiredChannels = forceChannelsSetting || [];
       console.log(`[check_sub] Required channels:`, requiredChannels);
 
       let notJoined: any[] = [];
       if (requiredChannels.length > 0 && ctx.from) {
-        for (const channel of requiredChannels) {
+        const checks = requiredChannels.map(async (channel: any) => {
           const channelId = typeof channel === "string" ? channel : channel.id;
           try {
             const member = await ctx.telegram.getChatMember(
@@ -1170,12 +1215,15 @@ export async function initializeBot() {
               ctx.from.id,
             );
             if (member.status === "left" || member.status === "kicked") {
-              notJoined.push(channel);
+              return channel;
             }
           } catch (e) {
-            notJoined.push(channel);
+            return channel;
           }
-        }
+          return null;
+        });
+        const results = await Promise.all(checks);
+        notJoined = results.filter(Boolean);
       }
 
       if (notJoined.length > 0) {
@@ -1230,6 +1278,8 @@ export async function initializeBot() {
         cmdDef,
         replyOptions,
         shouldIncrementCredit,
+        undefined,
+        userDoc,
       );
       console.log(`[check_sub] API Command executed via callback.`);
     } catch (err) {
@@ -1955,8 +2005,8 @@ export async function initializeBot() {
 
       if (!text.startsWith("/")) return;
 
-      const maintenanceSetting = await Setting.findOne({ key: 'botMaintenanceMode' });
-      if (maintenanceSetting && maintenanceSetting.value === true) {
+      const maintenanceSettingVal = await getCachedSetting('botMaintenanceMode', 15000);
+      if (maintenanceSettingVal === true) {
         await ctx.reply("🤖 The bot is currently under maintenance. This service is suspended temporarily!");
         return;
       }
@@ -2193,6 +2243,7 @@ export async function initializeBot() {
                 { value: channels },
                 { upsert: true },
               );
+              invalidateSettingCache("forceChannels");
               await ctx.reply(
                 `✅ *${channelId}* added to force subscription channels.`,
               );
@@ -2211,6 +2262,7 @@ export async function initializeBot() {
                 { key: "forceChannels" },
                 { value: channels },
               );
+              invalidateSettingCache("forceChannels");
               await ctx.reply(
                 `✅ *${channelId}* removed from force subscription channels.`,
               );
@@ -2476,29 +2528,28 @@ export async function initializeBot() {
         }
 
         // Force Subscribe Check
-        let forceChannelsSetting = await Setting.findOne({
-          key: "forceChannels",
-        });
-        let requiredChannels = forceChannelsSetting?.value || [];
+        let forceChannelsSetting = await getCachedSetting("forceChannels", 30000);
+        let requiredChannels = forceChannelsSetting || [];
 
         let notJoined: any[] = [];
         if (requiredChannels.length > 0 && ctx.from) {
-          for (const channel of requiredChannels) {
-            // channel is now {id, link}
-            const channelId =
-              typeof channel === "string" ? channel : channel.id;
+          const checks = requiredChannels.map(async (channel: any) => {
+            const channelId = typeof channel === "string" ? channel : channel.id;
             try {
               const member = await ctx.telegram.getChatMember(
                 channelId,
                 ctx.from.id,
               );
               if (member.status === "left" || member.status === "kicked") {
-                notJoined.push(channel);
+                return channel;
               }
             } catch (e) {
-              notJoined.push(channel); // assume not joined on error
+              return channel;
             }
-          }
+            return null;
+          });
+          const results = await Promise.all(checks);
+          notJoined = results.filter(Boolean);
         }
 
         if (notJoined.length > 0) {
@@ -2549,6 +2600,8 @@ export async function initializeBot() {
           cmdDef,
           replyOptions,
           shouldIncrementCredit,
+          isGroup,
+          userDoc,
         );
       } catch (e: any) {
         console.error(e);
