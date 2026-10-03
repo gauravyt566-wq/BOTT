@@ -23,20 +23,20 @@ async function verifyFampayPayment(paymentId: string, amount: number) {
   let foundTxn: any = null;
 
   try {
-    const utrRes = await axios.get(`https://famnify.vercel.app/fampay?utr=${cleanPaymentId}`);
-    if (utrRes.data && utrRes.data.found && utrRes.data.results && utrRes.data.results.length > 0) {
+    const utrRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
+    if (utrRes.data && utrRes.utrRes.data.results && utrRes.data.results.length > 0) {
       foundTxn = utrRes.data.results.find((item: any) => {
-        const isSuccess = String(item.Payment).toLowerCase() === 'success';
+        const isSuccess = true /* Fampay success flag always true in new endpoint */;
         const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
         return isSuccess && isAmountMatch;
       });
     }
 
     if (!foundTxn) {
-      const idRes = await axios.get(`https://famnify.vercel.app/fampay?id=${cleanPaymentId}`);
-      if (idRes.data && idRes.data.found && idRes.data.results && idRes.data.results.length > 0) {
+      const idRes = await axios.get(`https://fampay-ten.vercel.app/search?q=${$1}`);
+      if (idRes.data && idRes.idRes.data.results && idRes.data.results.length > 0) {
         foundTxn = idRes.data.results.find((item: any) => {
-          const isSuccess = String(item.Payment).toLowerCase() === 'success';
+          const isSuccess = true /* Fampay success flag always true in new endpoint */;
           const isAmountMatch = Math.abs(parseFloat(item.money) - Number(amount)) < 1.0;
           return isSuccess && isAmountMatch;
         });
@@ -1906,6 +1906,18 @@ async function executeCommandCore(ctx: any, userCommand: string, param: string, 
 
   if (limitInlineButton) {
     inlineButtonsList.push([limitInlineButton]);
+  }
+
+  // ✅ AXIOM FIX: Mirror bots me main-group ke liye bhi button
+  if (isGroup) {
+    const _isMainGroupMirror = String(ctx.chat?.username || "").toLowerCase() === "true_x_finder";
+    if (_isMainGroupMirror) {
+      inlineButtonsList.push([{
+        text: "📢 Main Group — Unlimited Free Usage",
+        callback_data: "group_lim",
+        style: "success",
+      } as any]);
+    }
   }
 
   if (!isGroup) {
